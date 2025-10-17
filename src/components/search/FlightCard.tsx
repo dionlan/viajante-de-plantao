@@ -1,6 +1,3 @@
-// components/search/FlightCard.tsx - Versão atualizada com cálculo do milheiro
-"use client";
-
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flight, Seller, FlightSegment } from "@/lib/types";
