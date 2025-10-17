@@ -1,32 +1,38 @@
+// app/api/search/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// Interface para os headers
 interface RequestHeaders {
     [key: string]: string;
 }
 
-// Interface para o corpo da requisição
 interface RequestBody {
     url: string;
     headers?: RequestHeaders;
     method?: string;
-    useFetch?: boolean;
     extractToken?: boolean;
-    command?: string;
 }
+
+// Timeout de 8 segundos (Vercel Hobby tem limite de 10s)
+const FETCH_TIMEOUT = 8000;
 
 export async function POST(request: NextRequest) {
     try {
         const body: RequestBody = await request.json();
-        const { url, headers = {}, method = 'GET', useFetch = false } = body;
+        const { url, headers = {}, method = 'GET', extractToken = false } = body;
 
-        console.log('🔍 Recebida requisição:', { url, method, useFetch });
+        console.log('🔍 Recebida requisição para:', url);
 
-        if (useFetch) {
-            return await handleFetchRequest(url, headers, method);
-        } else {
-            return await handleCurlRequest(url, headers, method, body.extractToken || false, body.command);
+        // Validação básica
+        if (!url || !url.startsWith('http')) {
+            return NextResponse.json({
+                success: false,
+                error: 'URL inválida',
+                data: null
+            }, { status: 400 });
         }
+
+        // SEMPRE usa fetch - curl não existe no Vercel
+        return await handleFetchRequest(url, headers, method, extractToken);
 
     } catch (error: unknown) {
         console.error('❌ Erro na API search:', error);
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: `Erro interno do servidor: ${errorMessage}`,
+                error: `Erro interno: ${errorMessage}`,
                 data: null
             },
             { status: 500 }
@@ -42,127 +48,79 @@ export async function POST(request: NextRequest) {
     }
 }
 
-async function handleFetchRequest(url: string, headers: RequestHeaders, method: string) {
-    console.log('🔍 Executando fetch para:', url);
-    console.log('📋 Número de headers:', Object.keys(headers).length);
-
-    // Log dos headers (sem valores sensíveis)
-    const safeHeaders = { ...headers };
-    if (safeHeaders.Cookie) safeHeaders.Cookie = '[REDACTED]';
-    if (safeHeaders['x-latam-search-token']) safeHeaders['x-latam-search-token'] = safeHeaders['x-latam-search-token'].substring(0, 50) + '...';
-
-    console.log('📋 Headers seguros:', safeHeaders);
-
-    try {
-        const response = await fetch(url, {
-            method: method,
-            headers: headers,
-        });
-
-        console.log('📊 Status da resposta:', response.status, response.statusText);
-
-        // Log dos headers de resposta
-        console.log('📋 Headers da resposta:', Object.fromEntries(response.headers.entries()));
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Corpo do erro:', errorText.substring(0, 500));
-            throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
-        }
-
-        const data = await response.text();
-        console.log('✅ Fetch concluído, tamanho:', data.length, 'caracteres');
-        //console.log('✅ Resposta completa:', data);
-        /* if (data.length < 1000) {
-            console.log('📦 Resposta completa:', data);
-        } else {
-            console.log('📦 Primeiros 999 chars:', data.substring(0, 999));
-            console.log('📦 Últimos 999 chars:', data.substring(data.length - 999));
-        } */
-
-        return NextResponse.json({
-            success: true,
-            data: data,
-            error: null
-        });
-    } catch (error: unknown) {
-        console.error('❌ Erro no fetch:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no fetch';
-        return NextResponse.json({
-            success: false,
-            error: errorMessage,
-            data: null
-        });
-    }
-}
-
-async function handleCurlRequest(
+async function handleFetchRequest(
     url: string,
     headers: RequestHeaders,
     method: string,
-    extractToken: boolean = false,
-    command?: string
+    extractToken: boolean = false
 ) {
-    let finalCommand: string;
+    console.log('🔍 Executando fetch para:', url);
 
-    if (command) {
-        finalCommand = command;
-    } else {
-        const headersString = Object.entries(headers)
-            .map(([key, value]) => `-H "${key}: ${value}"`)
-            .join(' ');
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            console.log(`🔄 Tentativa ${attempt} de 2...`);
 
-        finalCommand = `curl -s -X ${method} "${url}" ${headersString} --compressed --connect-timeout 30 --max-time 60`;
-    }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-    console.log('📋 Comando curl:', finalCommand);
-
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-
-    const { stdout, stderr } = await execAsync(finalCommand);
-
-    if (stderr && !stderr.includes('Warning')) {
-        console.error('❌ Erro no curl:', stderr);
-        return NextResponse.json({
-            success: false,
-            error: `Erro no curl: ${stderr}`,
-            data: null
-        });
-    }
-
-    if (!stdout || stdout.trim().length === 0) {
-        console.error('❌ Resposta vazia do servidor');
-        return NextResponse.json({
-            success: false,
-            error: 'Resposta vazia do servidor',
-            data: null
-        });
-    }
-
-    console.log('✅ Curl concluído, tamanho:', stdout.length, 'caracteres');
-
-    let finalData = stdout;
-    if (extractToken) {
-        console.log('🔍 Extraindo token da resposta...');
-        const tokenMatch = stdout.match(/"searchToken":"([^"]*)"/);
-        if (tokenMatch && tokenMatch[1]) {
-            finalData = tokenMatch[1];
-            console.log('✅ Token extraído:', finalData.substring(0, 50) + '...');
-        } else {
-            console.error('❌ Token não encontrado na resposta');
-            return NextResponse.json({
-                success: false,
-                error: 'Token não encontrado na resposta',
-                data: null
+            const response = await fetch(url, {
+                method: method,
+                headers: headers,
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
+
+            console.log('📊 Status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+            }
+
+            const data = await response.text();
+            console.log('✅ Fetch concluído, tamanho:', data.length);
+
+            let finalData = data;
+
+            if (extractToken) {
+                console.log('🔍 Extraindo token...');
+                const tokenMatch = data.match(/"searchToken":"([^"]*)"/);
+                if (tokenMatch && tokenMatch[1]) {
+                    finalData = tokenMatch[1];
+                    console.log('✅ Token extraído');
+                } else {
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Token não encontrado',
+                        data: null
+                    }, { status: 400 });
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                data: finalData,
+                error: null
+            });
+
+        } catch (error: unknown) {
+            console.error(`❌ Tentativa ${attempt} falhou:`, error);
+
+            if (attempt === 2) {
+                return NextResponse.json({
+                    success: false,
+                    error: 'Timeout: Serviço indisponível',
+                    data: null
+                }, { status: 408 });
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     }
 
     return NextResponse.json({
-        success: true,
-        data: finalData,
-        error: null
-    });
+        success: false,
+        error: 'Todas as tentativas falharam',
+        data: null
+    }, { status: 500 });
 }

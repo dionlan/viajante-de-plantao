@@ -4,22 +4,22 @@ const nextConfig = {
     domains: ['images.unsplash.com'],
     unoptimized: true
   },
-  trailingSlash: false,
-  compress: true,
-  poweredByHeader: false,
-  // Configurações importantes para produção
+  // Configurações para API Routes
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,PUT,DELETE,OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      },
+    ]
+  },
+  // Aumenta timeout para funções serverless (se suportado)
   experimental: {
-    optimizeCss: false,
-  },
-  compiler: {
-    removeConsole: process.env.NODE_ENV === 'production',
-  },
-  // Desabilita verificação durante o build se necessário
-  typescript: {
-    ignoreBuildErrors: false,
-  },
-  eslint: {
-    ignoreDuringBuilds: false,
+    serverComponentsExternalPackages: [],
   },
 }
 
