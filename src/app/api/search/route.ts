@@ -1,4 +1,4 @@
-// app/api/search/route.ts - SOLUÇÃO DE PROXY
+// app/api/search/route.ts - VERSÃO OTIMIZADA
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RequestHeaders {
@@ -10,299 +10,184 @@ interface RequestBody {
     headers?: RequestHeaders;
     method?: string;
     extractToken?: boolean;
+    useFetch?: boolean;
 }
 
-// Pool de User-Agents realistas para rotación
-const USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0'
-];
+// Configurações otimizadas para Vercel
+const VERCELL_CONFIG = {
+    timeout: 10000, // 10 segundos máximo
+    retries: 2,
+    retryDelay: 1000
+};
 
-// Estratégias de retry com backoff exponencial
-const RETRY_STRATEGIES = [
-    { delay: 1000, timeout: 8000 },  // Primeira tentativa: 8s
-    { delay: 2000, timeout: 10000 }, // Segunda tentativa: 10s  
-    { delay: 3000, timeout: 12000 }  // Terceira tentativa: 12s
-];
+export const runtime = 'edge'; // Usar Edge Runtime para melhor performance
 
 export async function POST(request: NextRequest) {
+    const requestId = generateRequestId();
+
+    console.log(`🔍 [${requestId}] Iniciando requisição para API LATAM`);
+
     try {
         const body: RequestBody = await request.json();
         const { url, headers = {}, method = 'GET', extractToken = false } = body;
 
-        console.log('🔍 Iniciando requisição estratégica para:', url);
+        // Validação básica
+        if (!url || !url.includes('latamairlines.com')) {
+            return NextResponse.json({
+                success: false,
+                error: 'URL inválida ou não permitida',
+                data: null
+            }, { status: 400 });
+        }
 
-        // Estratégia: Tentativas com diferentes configurações
-        for (let attempt = 0; attempt < RETRY_STRATEGIES.length; attempt++) {
-            const strategy = RETRY_STRATEGIES[attempt];
-
-            console.log(`🔄 Tentativa ${attempt + 1} com estratégia: ${strategy.timeout}ms`);
-
+        // Estratégia de retry otimizada
+        for (let attempt = 0; attempt <= VERCELL_CONFIG.retries; attempt++) {
             try {
-                const result = await executeStrategicRequest(
+                console.log(`🔄 [${requestId}] Tentativa ${attempt + 1}`);
+
+                const result = await fetchWithTimeout(
                     url,
                     headers,
                     method,
                     extractToken,
-                    strategy,
-                    attempt
+                    requestId
                 );
 
                 if (result.success) {
-                    console.log(`✅ Sucesso na tentativa ${attempt + 1}`);
-                    return result.response;
+                    console.log(`✅ [${requestId}] Sucesso na tentativa ${attempt + 1}`);
+                    return NextResponse.json(result);
                 }
 
-            } catch (err: unknown) {
-                const errMessage = err instanceof Error ? err.message : String(err);
-                console.log(`❌ Tentativa ${attempt + 1} falhou:`, errMessage);
+            } catch (error: unknown) {
+                console.log(`❌ [${requestId}] Tentativa ${attempt + 1} falhou:`, error instanceof Error ? error.message : String(error));
 
-                if (attempt === RETRY_STRATEGIES.length - 1) {
-                    throw err; // Última tentativa
+                if (attempt === VERCELL_CONFIG.retries) {
+                    throw error;
                 }
 
                 // Aguarda antes da próxima tentativa
-                await new Promise(resolve => setTimeout(resolve, strategy.delay));
+                await new Promise(resolve => setTimeout(resolve, VERCELL_CONFIG.retryDelay));
             }
         }
 
-        throw new Error('Todas as estratégias falharam');
+        throw new Error('Todas as tentativas falharam');
 
     } catch (error: unknown) {
-        console.error('❌ Erro crítico na API search:', error);
+        console.error(`💥 [${requestId}] Erro crítico:`, error);
+
         return NextResponse.json({
             success: false,
-            error: 'Falha de conexão com o provedor',
+            error: getErrorMessage(error),
             data: null
         }, { status: 502 });
     }
 }
 
-async function executeStrategicRequest(
+async function fetchWithTimeout(
     url: string,
-    originalHeaders: RequestHeaders,
+    headers: RequestHeaders,
     method: string,
     extractToken: boolean,
-    strategy: { timeout: number },
-    attempt: number
-) {
-    // 1. OTIMIZAÇÃO DE HEADERS PARA EVASÃO DE BLOQUEIO
-    const strategicHeaders = optimizeHeadersForLatam(originalHeaders, attempt);
+    requestId: string
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
 
-    // 2. CONTROLLER COM TIMEOUT ESTRATÉGICO
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), strategy.timeout);
+    const timeoutId = setTimeout(() => controller.abort(), VERCELL_CONFIG.timeout);
 
     try {
-        console.log(`🎯 Executando com headers otimizados (tentativa ${attempt + 1})`);
+        // Headers otimizados para LATAM
+        const optimizedHeaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            ...headers
+        };
+
+        console.log(`🌐 [${requestId}] Fetching: ${url.substring(0, 100)}...`);
 
         const response = await fetch(url, {
             method: method,
-            headers: strategicHeaders,
+            headers: optimizedHeaders,
             signal: controller.signal,
-            // Configurações adicionais para evasão
+            // Configurações importantes para Vercel
             cache: 'no-store',
-            redirect: 'follow'
+            next: { revalidate: 0 }
         });
 
         clearTimeout(timeoutId);
 
-        console.log(`📊 Resposta recebida - Status: ${response.status}`);
+        console.log(`📊 [${requestId}] Status: ${response.status}`);
 
-        // 3. ANÁLISE DA RESPOSTA
         if (!response.ok) {
-            const errorData = await analyzeErrorResponse(response);
-            throw new Error(`HTTP ${response.status}: ${errorData}`);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.text();
+        const responseText = await response.text();
 
-        // 4. VALIDAÇÃO DO CONTEÚDO
-        if (!isValidResponse(data, extractToken)) {
-            throw new Error('Resposta inválida ou bloqueada');
+        if (!responseText) {
+            throw new Error('Resposta vazia');
         }
 
-        let finalData = data;
-
+        // Extração de token se necessário
         if (extractToken) {
-            const tokenMatch = data.match(/"searchToken":"([^"]*)"/);
+            const tokenMatch = responseText.match(/"searchToken":"([^"]*)"/);
             if (tokenMatch && tokenMatch[1]) {
-                finalData = tokenMatch[1];
-                console.log('✅ Token extraído com sucesso');
+                console.log(`✅ [${requestId}] Token extraído com sucesso`);
+                return {
+                    success: true,
+                    data: tokenMatch[1]
+                };
             } else {
                 throw new Error('Token não encontrado na resposta');
             }
         }
 
-        return {
-            success: true,
-            response: NextResponse.json({
+        // Valida se é JSON válido
+        try {
+            const jsonData = JSON.parse(responseText);
+            return {
                 success: true,
-                data: finalData,
-                error: null,
-                attempt: attempt + 1
-            })
-        };
+                data: jsonData
+            };
+        } catch {
+            return {
+                success: true,
+                data: responseText
+            };
+        }
 
     } catch (error) {
         clearTimeout(timeoutId);
         throw error;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
-function optimizeHeadersForLatam(originalHeaders: RequestHeaders, attempt: number): RequestHeaders {
-    // Headers base otimizados para a LATAM
-    const baseHeaders: RequestHeaders = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'DNT': '1',
-        'Upgrade-Insecure-Requests': '1'
-    };
-
-    // Rotação de User-Agent
-    const userAgentIndex = attempt % USER_AGENTS.length;
-    baseHeaders['User-Agent'] = USER_AGENTS[userAgentIndex];
-
-    // Headers específicos para API da LATAM (segunda requisição)
-    if (originalHeaders['x-latam-search-token']) {
-        baseHeaders['accept'] = 'application/json, text/plain, */*';
-        baseHeaders['priority'] = 'u=1, i';
-        baseHeaders['sec-ch-ua'] = '"Google Chrome";v="141", "Not-A.Brand";v="8", "Chromium";v="141"';
-        baseHeaders['sec-ch-ua-mobile'] = '?0';
-        baseHeaders['sec-ch-ua-platform'] = '"Windows"';
-        baseHeaders['sec-fetch-dest'] = 'empty';
-        baseHeaders['sec-fetch-mode'] = 'cors';
-        baseHeaders['sec-fetch-site'] = 'same-origin';
-
-        // Headers específicos da LATAM
-        baseHeaders['x-latam-action-name'] = originalHeaders['x-latam-action-name'] || 'search-result.flightselection.offers-search';
-        baseHeaders['x-latam-app-session-id'] = originalHeaders['x-latam-app-session-id'] || generateSessionId();
-        baseHeaders['x-latam-application-country'] = 'BR';
-        baseHeaders['x-latam-application-lang'] = 'pt';
-        baseHeaders['x-latam-application-name'] = 'web-air-offers';
-        baseHeaders['x-latam-application-oc'] = 'br';
-        baseHeaders['x-latam-client-name'] = 'web-air-offers';
-        baseHeaders['x-latam-device-width'] = '1920';
-        baseHeaders['x-latam-request-id'] = originalHeaders['x-latam-request-id'] || generateRequestId();
-        baseHeaders['x-latam-search-token'] = originalHeaders['x-latam-search-token'];
-        baseHeaders['x-latam-track-id'] = originalHeaders['x-latam-track-id'] || generateTrackId();
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+            return 'Timeout: A requisição excedeu o tempo limite';
+        }
+        return error.message;
     }
-
-    // Mescla com headers originais (priorizando os otimizados)
-    return { ...originalHeaders, ...baseHeaders };
-}
-
-async function analyzeErrorResponse(response: Response): Promise<string> {
-    try {
-        const text = await response.text();
-
-        // Análise de padrões de bloqueio
-        if (text.includes('cloudflare') || text.includes('captcha') || text.includes('access denied')) {
-            return 'Bloqueado por WAF/Cloudflare';
-        }
-
-        if (text.includes('rate limit') || text.includes('too many requests')) {
-            return 'Rate limiting ativo';
-        }
-
-        if (response.status === 403) {
-            return 'Acesso negado (403)';
-        }
-
-        if (response.status === 429) {
-            return 'Muitas requisições (429)';
-        }
-
-        return `Status: ${response.status}`;
-
-    } catch {
-        return `Status: ${response.status} (sem corpo)`;
-    }
-}
-
-function isValidResponse(data: string, extractToken: boolean): boolean {
-    if (!data || data.length < 10) return false;
-
-    if (extractToken) {
-        return /"searchToken":"[^"]*"/.test(data);
-    }
-
-    // Para ofertas, verifica se é JSON válido ou contém dados esperados
-    try {
-        if (data.startsWith('{') || data.startsWith('[')) {
-            JSON.parse(data);
-        }
-        return true;
-    } catch {
-        return data.includes('content') || data.includes('offers') || data.includes('flights');
-    }
-}
-
-function generateSessionId(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
+    return 'Erro desconhecido';
 }
 
 function generateRequestId(): string {
-    return generateSessionId(); // Mesmo formato
+    return Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15);
 }
 
-function generateTrackId(): string {
-    return generateSessionId(); // Mesmo formato
-}
-
-// Health check com diagnóstico
+// Health check simplificado
 export async function GET(request: NextRequest) {
-    const url = new URL(request.url);
-    const diagnostic = url.searchParams.get('diagnostic');
-
-    if (diagnostic) {
-        // Teste de conectividade com a LATAM
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const testResponse = await fetch('https://www.latamairlines.com/br/pt', {
-                method: 'HEAD',
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            return NextResponse.json({
-                success: true,
-                message: 'Diagnóstico de conectividade',
-                latamAccessible: testResponse.ok,
-                latamStatus: testResponse.status,
-                environment: process.env.VERCEL ? 'vercel' : 'local',
-                timestamp: new Date().toISOString()
-            });
-
-        } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : String(err);
-
-            return NextResponse.json({
-                success: false,
-                message: 'Diagnóstico de conectividade',
-                latamAccessible: false,
-                error: errorMessage,
-                environment: process.env.VERCEL ? 'vercel' : 'local',
-                timestamp: new Date().toISOString()
-            });
-        }
-    }
-
     return NextResponse.json({
         success: true,
         message: 'Search API is running',
         environment: process.env.VERCEL ? 'vercel' : 'local',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        region: process.env.VERCEL_REGION || 'unknown'
     });
 }
