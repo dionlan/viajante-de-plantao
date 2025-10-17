@@ -4,7 +4,10 @@ const nextConfig = {
     domains: ['images.unsplash.com'],
     unoptimized: true
   },
-  // Configurações para API Routes
+  // Configuração atualizada
+  experimental: {
+    serverExternalPackages: [],
+  },
   async headers() {
     return [
       {
@@ -16,10 +19,6 @@ const nextConfig = {
         ],
       },
     ]
-  },
-  // Aumenta timeout para funções serverless (se suportado)
-  experimental: {
-    serverComponentsExternalPackages: [],
   },
 }
 

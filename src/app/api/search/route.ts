@@ -1,4 +1,4 @@
-// app/api/search/route.ts
+// app/api/search/route.ts - VERIFIQUE SE ESTÁ ASSIM
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RequestHeaders {
@@ -12,7 +12,6 @@ interface RequestBody {
     extractToken?: boolean;
 }
 
-// Timeout de 8 segundos (Vercel Hobby tem limite de 10s)
 const FETCH_TIMEOUT = 8000;
 
 export async function POST(request: NextRequest) {
@@ -123,4 +122,13 @@ async function handleFetchRequest(
         error: 'Todas as tentativas falharam',
         data: null
     }, { status: 500 });
+}
+
+// Health check
+export async function GET() {
+    return NextResponse.json({
+        success: true,
+        message: 'Search API is running',
+        timestamp: new Date().toISOString()
+    });
 }
