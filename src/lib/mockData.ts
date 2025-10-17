@@ -315,14 +315,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-15T08:00:00',
         arrival: '2024-02-15T11:30:00',
         duration: '03:30',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 15000,
         cashPrice: 890.00,
         program: 'latam',
         sellers: ['1', '2', '3'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '2',
@@ -335,14 +334,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-15T10:00:00',
         arrival: '2024-02-15T14:20:00',
         duration: '04:20',
-        direct: false,
-        stops: 1,
         class: 'Economy',
         milesPrice: 12000,
         cashPrice: 750.00,
         program: 'gol',
         sellers: ['1', '4'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '3',
@@ -355,14 +353,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-16T07:30:00',
         arrival: '2024-02-16T09:45:00',
         duration: '02:15',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 8500,
         cashPrice: 520.00,
         program: 'azul',
         sellers: ['3', '5'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '4',
@@ -375,14 +372,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-17T14:00:00',
         arrival: '2024-02-17T15:30:00',
         duration: '01:30',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 6500,
         cashPrice: 380.00,
         program: 'latam',
         sellers: ['2', '6'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '5',
@@ -395,14 +391,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-18T06:00:00',
         arrival: '2024-02-18T09:15:00',
         duration: '03:15',
-        direct: true,
-        stops: 0,
         class: 'Premium Economy',
         milesPrice: 22000,
         cashPrice: 1250.00,
         program: 'gol',
         sellers: ['1', '3', '7'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '6',
@@ -415,14 +410,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-19T11:20:00',
         arrival: '2024-02-19T14:45:00',
         duration: '03:25',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 11000,
         cashPrice: 680.00,
         program: 'azul',
         sellers: ['4', '5'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '7',
@@ -435,14 +429,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-20T16:30:00',
         arrival: '2024-02-20T18:15:00',
         duration: '01:45',
-        direct: true,
-        stops: 0,
         class: 'Business',
         milesPrice: 35000,
         cashPrice: 2100.00,
         program: 'latam',
         sellers: ['3', '7'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '8',
@@ -455,14 +448,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-21T13:45:00',
         arrival: '2024-02-21T16:30:00',
         duration: '02:45',
-        direct: false,
-        stops: 1,
         class: 'Economy',
         milesPrice: 9500,
         cashPrice: 590.00,
         program: 'gol',
         sellers: ['2', '6'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '9',
@@ -475,14 +467,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-22T09:15:00',
         arrival: '2024-02-22T12:00:00',
         duration: '02:45',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 12500,
         cashPrice: 740.00,
         program: 'azul',
         sellers: ['1', '5'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '10',
@@ -495,14 +486,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-23T20:00:00',
         arrival: '2024-02-23T23:30:00',
         duration: '03:30',
-        direct: false,
-        stops: 1,
         class: 'Premium Economy',
         milesPrice: 18000,
         cashPrice: 980.00,
         program: 'latam',
         sellers: ['3', '4', '7'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '11',
@@ -515,14 +505,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-24T05:45:00',
         arrival: '2024-02-24T09:30:00',
         duration: '03:45',
-        direct: true,
-        stops: 0,
         class: 'Economy',
         milesPrice: 14000,
         cashPrice: 820.00,
         program: 'gol',
         sellers: ['2', '5'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     },
     {
         id: '12',
@@ -535,14 +524,13 @@ export const mockFlights: Flight[] = [
         departure: '2024-02-25T15:20:00',
         arrival: '2024-02-25T18:10:00',
         duration: '02:50',
-        direct: true,
-        stops: 0,
         class: 'Business',
         milesPrice: 28000,
         cashPrice: 1650.00,
         program: 'azul',
         sellers: ['1', '3', '6'],
-        durationMinutes: 0
+        durationMinutes: 0,
+        stopOvers: 0
     }
 ]
 

@@ -10,7 +10,6 @@ import {
   formatTime,
   formatDate,
   getSellerLevelColor,
-  formatDuration,
   calculateMileValue,
 } from "@/lib/utils";
 import {
@@ -25,7 +24,6 @@ import {
   MapPin,
   PlaneIcon,
   RefreshCw,
-  Building,
   Luggage,
   PlaneTakeoff,
   PlaneLanding,
@@ -34,7 +32,8 @@ import {
   TrendingDown,
   Zap,
   Crown,
-  BadgePercent,
+  AlertTriangle,
+  TrendingUp,
 } from "lucide-react";
 import StarRating from "@/components/ui/star-rating";
 import Image from "next/image";
@@ -132,13 +131,35 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     return flight.itinerary ? flight.itinerary.length - 1 : 0;
   };
 
-  // Seleciona entre 1 e 3 vendedores mockados para este voo
-  const getRandomSellers = (): Seller[] => {
-    const count = Math.floor(Math.random() * 3) + 1; // 1 a 3 vendedores
-    return sellers.slice(0, count);
-  };
+  // SELEÇÃO GARANTIDA DE VENDEDORES - CORRIGIDA
+  const flightSellers = useMemo((): Seller[] => {
+    // Garante que sempre tenha pelo menos 1 vendedor
+    if (!sellers || sellers.length === 0) {
+      return [];
+    }
 
-  const flightSellers = getRandomSellers();
+    const minSellers = 1;
+    const maxSellers = 3;
+
+    // Usa o ID do voo como seed para consistência
+    const flightId = flight.id || "default";
+    const seed = flightId
+      .split("")
+      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+    // Calcula quantos vendedores este voo terá (1-3)
+    const sellerCount = minSellers + (seed % (maxSellers - minSellers + 1));
+
+    // Seleciona vendedores baseado no seed
+    const selectedSellers: Seller[] = [];
+
+    for (let i = 0; i < sellerCount; i++) {
+      const sellerIndex = (seed + i) % sellers.length;
+      selectedSellers.push(sellers[sellerIndex]);
+    }
+
+    return selectedSellers;
+  }, [flight.id, sellers]);
 
   // Render da timeline moderna do itinerário
   const renderTimeline = () => {
@@ -434,15 +455,16 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
       whileHover={{ y: -2 }}
       className="p-4 hover:bg-white transition-all duration-300 border-b border-gray-100/50 last:border-b-0 bg-gray-50/30"
     >
-      <div className="flex flex-col xl:flex-row gap-2">
+      <div className="flex flex-col xl:flex-row gap-6">
         {/* Informações do Voo */}
         <div className="flex-1">
           {/* Container Principal com Borda Única */}
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300">
             {/* Header do Voo */}
             <div className="p-6">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div className="flex items-center justify-center gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                {/* Informações da Companhia */}
+                <div className="flex items-start gap-4 flex-1">
                   <motion.div
                     whileHover={{ scale: 1.05 }}
                     className="w-14 h-14 bg-white rounded-2xl shadow-lg flex items-center justify-center border border-gray-100"
@@ -462,12 +484,12 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                   </motion.div>
 
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-3">
                       <h4 className="font-bold text-gray-900 text-xl font-poppins">
                         {flight.airline}
                       </h4>
                       <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium border ${getProgramColor(
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border ${getProgramColor(
                           flight.program
                         )}`}
                       >
@@ -498,121 +520,136 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                   </div>
                 </div>
 
-                {/* Preço Principal - ATUALIZADO COM CÁLCULO DO MILHEIRO */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="text-center sm:text-right space-y-3"
+                  className="flex flex-col gap-4 min-w-[300px]"
                 >
-                  {/* Preço em Milhas */}
-                  {flight.milesPrice > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-gray-600 font-medium">
-                        Preço em Milhas
-                      </div>
-                      <div className="text-2xl font-bold text-[#317873] font-poppins">
-                        {formatMiles(flight.milesPrice)}
-                        <span className="text-lg font-normal text-gray-600 ml-1">
-                          milhas
-                        </span>
-                      </div>
-                    </div>
+                  {/* Badge de Oferta Exclusiva */}
+                  {isPremiumOffer && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg"
+                    >
+                      <Crown className="w-4 h-4" />
+                      <span>OFERTA EXCLUSIVA</span>
+                      <Sparkles className="w-4 h-4" />
+                    </motion.div>
                   )}
 
-                  {/* Cálculo do Milheiro - NOVA SEÇÃO */}
-                  {flight.milesPrice > 0 && mileCalculation && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.2 }}
-                      className={`p-3 rounded-xl border-2 ${getMileValueColor(
-                        mileCalculation.discountPercentage
-                      )} transition-all duration-300 hover:shadow-md`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          {getMileValueIcon(mileCalculation.discountPercentage)}
-                          <span className="font-semibold text-sm">
-                            Valor Calculado
-                          </span>
-                        </div>
-                        {isPremiumOffer && (
-                          <BadgePercent className="w-4 h-4 text-emerald-600" />
-                        )}
-                      </div>
-
-                      <div className="space-y-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-gray-600">
-                            Nosso preço:
-                          </span>
-                          <span className="text-lg font-bold text-gray-900">
-                            {formatCurrency(mileCalculation.calculatedValue)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs text-gray-600">
-                            Preço original:
-                          </span>
-                          <span className="text-sm line-through text-gray-500">
-                            {formatCurrency(flight.cashPrice)}
-                          </span>
-                        </div>
-
-                        {mileCalculation.discountPercentage > 0 && (
-                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/50">
-                            <span className="text-xs font-medium">
-                              Economia:
-                            </span>
-                            <span
-                              className={`text-sm font-bold ${
-                                mileCalculation.discountPercentage >= 30
-                                  ? "text-emerald-600"
-                                  : mileCalculation.discountPercentage >= 15
-                                  ? "text-blue-600"
-                                  : "text-gray-600"
-                              }`}
-                            >
-                              {mileCalculation.discountPercentage}%
-                            </span>
+                  {/* Nosso Preço - DESTAQUE PRINCIPAL */}
+                  {flight.milesPrice > 0 && (
+                    <div className="text-center space-y-3 p-4 bg-gradient-to-br from-white to-emerald-50 rounded-2xl border-2 border-emerald-200 shadow-lg">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-sm font-semibold text-emerald-700">
+                          Com milhas:
+                        </span>
+                        {isGoodOffer && !isPremiumOffer && (
+                          <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">
+                            <Zap className="w-3 h-3" />
+                            <span>BOA OFERTA</span>
                           </div>
                         )}
                       </div>
 
-                      {/* Badge de Oferta Especial */}
-                      {isPremiumOffer && (
+                      <div className="text-4xl font-bold text-emerald-700 font-poppins">
+                        {formatMiles(flight.milesPrice)}
+                        <span className="text-lg font-normal text-emerald-600 ml-1">
+                          milhas
+                        </span>
+                      </div>
+
+                      {/* Valor Calculado em Reais */}
+                      {mileCalculation && (
+                        <div className="space-y-2">
+                          <div className="text-2xl font-bold text-gray-900">
+                            {formatCurrency(mileCalculation.calculatedValue)}
+                          </div>
+                          <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 font-semibold">
+                            <TrendingUp className="w-4 h-4" />
+                            Melhor custo-benefício
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Comparação de Valores - Design Aprimorado */}
+                  <div className="grid gap-3">
+                    {/* Valor Original da Companhia - DESIGN NEGATIVO */}
+                    {flight.cashPrice > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="relative p-4 rounded-xl border border-gray-300 bg-white shadow-sm"
+                      >
+                        {/* Header da Companhia */}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <PlaneIcon className="w-4 h-4 text-gray-500" />
+                            <span className="font-semibold text-sm text-gray-700">
+                              Direto na companhia
+                            </span>
+                          </div>
+                          <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        </div>
+
+                        {/* Preço da Companhia com Efeito de Cortado */}
+                        <div className="text-center relative">
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-full h-0.5 bg-red-400 transform rotate-[-3deg] shadow-sm"></div>
+                          </div>
+                          <div className="text-2xl font-bold text-gray-400 relative">
+                            {formatCurrency(flight.cashPrice)}
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-500 text-center mt-2">
+                          Preço oficial sem benefícios
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Economia Destaque - DESIGN POSITIVO */}
+                    {flight.milesPrice > 0 &&
+                      mileCalculation &&
+                      mileCalculation.discountPercentage > 0 && (
                         <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-center gap-1 mt-2 pt-2 border-t border-emerald-200/50"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.4 }}
+                          className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg"
                         >
-                          <Sparkles className="w-3 h-3 text-emerald-500" />
-                          <span className="text-xs font-semibold text-emerald-700">
-                            Oferta Premium
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white/20 rounded-full">
+                              <Sparkles className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold">
+                                Você economiza
+                              </div>
+                              <div className="text-xs opacity-90">
+                                Em relação à companhia
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="text-2xl font-bold">
+                              {mileCalculation.discountPercentage}%
+                            </div>
+                            <div className="text-sm font-semibold">
+                              {formatCurrency(
+                                flight.cashPrice -
+                                  mileCalculation.calculatedValue
+                              )}
+                            </div>
+                          </div>
                         </motion.div>
                       )}
-                    </motion.div>
-                  )}
-
-                  {/* Preço em Dinheiro (fallback) */}
-                  {flight.milesPrice === 0 && flight.cashPrice > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-gray-600 font-medium">
-                        Preço em Reais
-                      </div>
-                      <div className="text-2xl font-bold text-[#317873]">
-                        {formatCurrency(flight.cashPrice)}
-                      </div>
-                    </div>
-                  )}
-
-                  {flight.milesPrice === 0 && flight.cashPrice === 0 && (
-                    <div className="text-md text-gray-500 font-poppins">
-                      Preços indisponíveis
-                    </div>
-                  )}
+                  </div>
                 </motion.div>
               </div>
             </div>
@@ -730,176 +767,177 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
           </div>
         </div>
 
-        {/* Vendedores - Sidebar - AGORA SEMPRE VISÍVEL */}
-        <div className="xl:w-96 xl:border-l xl:border-l-gray-200 xl:pl-8">
-          <div className="mb-6">
-            <h5 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-3">
-              <div className="p-2 bg-[#317873] rounded-xl">
-                <User className="w-5 h-5 text-white" />
-              </div>
-              Vendedores Verificados
-              <span className="text-sm text-gray-500 font-normal">
-                ({flightSellers.length})
-              </span>
-            </h5>
-            <p className="text-sm text-gray-600 flex items-center gap-2">
-              <Shield className="w-4 h-4 text-green-500" />
-              Transações 100% seguras
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {flightSellers.map((seller, index) => (
-              <motion.div
-                key={seller.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
-              >
-                {/* Header do Vendedor */}
-                <div
-                  className="p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
-                  onClick={() => toggleSeller(seller.id)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-12 h-12 bg-gradient-to-br from-[#317873] to-[#a0d6b4] rounded-xl flex items-center justify-center text-white font-semibold text-sm shadow-lg">
-                          {seller.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </div>
-                        {seller.verified && (
-                          <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full p-1 shadow-lg">
-                            <BadgeCheck className="w-3 h-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h6 className="font-semibold text-gray-900 truncate">
-                            {seller.name}
-                          </h6>
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getSellerLevelColor(
-                              seller.level
-                            )}`}
-                          >
-                            {seller.level === "beginner"
-                              ? "⭐ Iniciante"
-                              : seller.level === "intermediate"
-                              ? "⭐⭐ Intermediário"
-                              : "⭐⭐⭐ Expert"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <StarRating rating={seller.rating} size="sm" />
-                          <span className="text-sm text-gray-500">
-                            {seller.rating.toFixed(1)} • {seller.totalSales}{" "}
-                            vendas
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <motion.div
-                      animate={{
-                        rotate: expandedSeller === seller.id ? 180 : 0,
-                      }}
-                      transition={{ duration: 0.2 }}
-                      className="text-gray-400"
-                    >
-                      <ChevronDown className="w-5 h-5" />
-                    </motion.div>
-                  </div>
+        {/* Vendedores - Sidebar - AGORA GARANTIDO PARA TODOS OS VOOS */}
+        {flightSellers.length > 0 && (
+          <div className="xl:w-96 xl:border-l xl:border-l-gray-200 xl:pl-8">
+            <div className="mb-6">
+              <h5 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-3">
+                <div className="p-2 bg-[#317873] rounded-xl">
+                  <User className="w-5 h-5 text-white" />
                 </div>
+                Vendedores Verificados
+                <span className="text-sm text-gray-500 font-normal">
+                  ({flightSellers.length})
+                </span>
+              </h5>
+              <p className="text-sm text-gray-600 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-500" />
+                Transações 100% seguras
+              </p>
+            </div>
 
-                {/* Detalhes Expandidos do Vendedor */}
-                <AnimatePresence>
-                  {expandedSeller === seller.id && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="border-t border-gray-100"
-                    >
-                      <div className="p-4 space-y-4">
-                        {/* Estatísticas */}
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div className="text-center p-3 bg-gray-50 rounded-lg">
-                            <div className="text-2xl font-bold text-[#317873] mb-1">
-                              {seller.completionRate}%
-                            </div>
-                            <div className="text-gray-600">Conclusão</div>
+            <div className="space-y-4">
+              {flightSellers.map((seller, index) => (
+                <motion.div
+                  key={`${seller.id}-${flight.id}-${index}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
+                >
+                  {/* Header do Vendedor */}
+                  <div
+                    className="p-4 cursor-pointer hover:bg-gray-50/50 transition-colors"
+                    onClick={() => toggleSeller(seller.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-gradient-to-br from-[#317873] to-[#a0d6b4] rounded-xl flex items-center justify-center text-white font-semibold text-sm shadow-lg">
+                            {seller.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
                           </div>
-                          <div className="text-center p-3 bg-gray-50 rounded-lg">
-                            <div className="text-xl font-bold text-[#317873] mb-1">
-                              {seller.responseTime}
+                          {seller.verified && (
+                            <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full p-1 shadow-lg">
+                              <BadgeCheck className="w-3 h-3 text-white" />
                             </div>
-                            <div className="text-gray-600">Resposta</div>
-                          </div>
+                          )}
                         </div>
 
-                        {/* Botões de Contato */}
-                        <div className="grid grid-cols-3 gap-2">
-                          <ContactButton
-                            href={`https://wa.me/${seller.contact.whatsapp}`}
-                            icon={<MessageCircle className="w-4 h-4" />}
-                            className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
-                          >
-                            WhatsApp
-                          </ContactButton>
-
-                          <ContactButton
-                            href={`tel:${seller.contact.phone}`}
-                            icon={<Phone className="w-4 h-4" />}
-                            className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
-                          >
-                            Ligar
-                          </ContactButton>
-
-                          <ContactButton
-                            href={`mailto:${seller.contact.email}`}
-                            icon={<Mail className="w-4 h-4" />}
-                            className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
-                          >
-                            E-mail
-                          </ContactButton>
-                        </div>
-
-                        {/* Última Avaliação */}
-                        {seller.reviews.length > 0 && (
-                          <div className="p-3 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-100">
-                            <div className="flex items-center gap-2 mb-2">
-                              <StarRating
-                                rating={seller.reviews[0].rating}
-                                size="sm"
-                              />
-                              <span className="text-sm font-medium text-gray-900">
-                                {seller.reviews[0].user}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600 italic">
-                              &quot;{seller.reviews[0].comment}&quot;
-                            </p>
-                            <div className="text-xs text-gray-500 mt-2">
-                              {formatDate(seller.reviews[0].date)}
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h6 className="font-semibold text-gray-900 truncate">
+                              {seller.name}
+                            </h6>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getSellerLevelColor(
+                                seller.level
+                              )}`}
+                            >
+                              {seller.level === "beginner"
+                                ? "⭐ Iniciante"
+                                : seller.level === "intermediate"
+                                ? "⭐⭐ Intermediário"
+                                : "⭐⭐⭐ Expert"}
+                            </span>
                           </div>
-                        )}
+
+                          <div className="flex items-center gap-2">
+                            <StarRating rating={seller.rating} size="sm" />
+                            <span className="text-sm text-gray-500">
+                              {seller.rating.toFixed(1)} • {seller.totalSales}{" "}
+                              vendas
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
+
+                      <motion.div
+                        animate={{
+                          rotate: expandedSeller === seller.id ? 180 : 0,
+                        }}
+                        transition={{ duration: 0.2 }}
+                        className="text-gray-400"
+                      >
+                        <ChevronDown className="w-5 h-5" />
+                      </motion.div>
+                    </div>
+                  </div>
+
+                  {/* Detalhes Expandidos do Vendedor */}
+                  <AnimatePresence>
+                    {expandedSeller === seller.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="border-t border-gray-100"
+                      >
+                        <div className="p-4 space-y-4">
+                          {/* Estatísticas */}
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="text-center p-3 bg-gray-50 rounded-lg">
+                              <div className="text-2xl font-bold text-[#317873] mb-1">
+                                {seller.completionRate}%
+                              </div>
+                              <div className="text-gray-600">Conclusão</div>
+                            </div>
+                            <div className="text-center p-3 bg-gray-50 rounded-lg">
+                              <div className="text-xl font-bold text-[#317873] mb-1">
+                                {seller.responseTime}
+                              </div>
+                              <div className="text-gray-600">Resposta</div>
+                            </div>
+                          </div>
+
+                          {/* Botões de Contato */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <ContactButton
+                              href={`https://wa.me/${seller.contact.whatsapp}`}
+                              icon={<MessageCircle className="w-4 h-4" />}
+                              className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
+                            >
+                              WhatsApp
+                            </ContactButton>
+
+                            <ContactButton
+                              href={`tel:${seller.contact.phone}`}
+                              icon={<Phone className="w-4 h-4" />}
+                              className="!bg-[#317873] !text-white hover:!bg-[#49796b]"
+                            >
+                              Ligar
+                            </ContactButton>
+
+                            <ContactButton
+                              href={`mailto:${seller.contact.email}`}
+                              icon={<Mail className="w-4 h-4" />}
+                            >
+                              E-mail
+                            </ContactButton>
+                          </div>
+
+                          {/* Última Avaliação */}
+                          {seller.reviews.length > 0 && (
+                            <div className="p-3 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-100">
+                              <div className="flex items-center gap-2 mb-2">
+                                <StarRating
+                                  rating={seller.reviews[0].rating}
+                                  size="sm"
+                                />
+                                <span className="text-sm font-medium text-gray-900">
+                                  {seller.reviews[0].user}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 italic">
+                                &quot;{seller.reviews[0].comment}&quot;
+                              </p>
+                              <div className="text-xs text-gray-500 mt-2">
+                                {formatDate(seller.reviews[0].date)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </motion.div>
   );
