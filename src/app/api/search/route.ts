@@ -1,4 +1,4 @@
-// app/api/search/route.ts - VERSÃO OTIMIZADA
+// app/api/search/route.ts - VERSÃO CORRIGIDA
 import { NextRequest, NextResponse } from 'next/server';
 
 interface RequestHeaders {
@@ -20,7 +20,7 @@ const VERCELL_CONFIG = {
     retryDelay: 1000
 };
 
-export const runtime = 'edge'; // Usar Edge Runtime para melhor performance
+// REMOVER runtime: 'edge' - usar Node.js runtime padrão
 
 export async function POST(request: NextRequest) {
     const requestId = generateRequestId();
@@ -32,10 +32,10 @@ export async function POST(request: NextRequest) {
         const { url, headers = {}, method = 'GET', extractToken = false } = body;
 
         // Validação básica
-        if (!url || !url.includes('latamairlines.com')) {
+        if (!url) {
             return NextResponse.json({
                 success: false,
-                error: 'URL inválida ou não permitida',
+                error: 'URL é obrigatória',
                 data: null
             }, { status: 400 });
         }
@@ -95,7 +95,7 @@ async function fetchWithTimeout(
     const timeoutId = setTimeout(() => controller.abort(), VERCELL_CONFIG.timeout);
 
     try {
-        // Headers otimizados para LATAM
+        // Headers otimizados
         const optimizedHeaders = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -111,9 +111,6 @@ async function fetchWithTimeout(
             method: method,
             headers: optimizedHeaders,
             signal: controller.signal,
-            // Configurações importantes para Vercel
-            cache: 'no-store',
-            next: { revalidate: 0 }
         });
 
         clearTimeout(timeoutId);
@@ -181,7 +178,7 @@ function generateRequestId(): string {
         Math.random().toString(36).substring(2, 15);
 }
 
-// Health check simplificado
+// Health check
 export async function GET(request: NextRequest) {
     return NextResponse.json({
         success: true,

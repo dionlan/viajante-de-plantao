@@ -6,6 +6,11 @@
       "use": "@vercel/next"
     }
   ],
-  "buildCommand": "npm install && npm run build",
-  "installCommand": "npm install"
+  "functions": {
+    "app/api/search/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "regions": ["gru1"]
 }
