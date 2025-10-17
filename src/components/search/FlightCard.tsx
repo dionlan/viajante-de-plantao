@@ -85,19 +85,6 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     );
   };
 
-  const getMileValueColor = (discount: number) => {
-    if (discount >= 30)
-      return "text-emerald-600 bg-emerald-50 border-emerald-200";
-    if (discount >= 15) return "text-blue-600 bg-blue-50 border-blue-200";
-    return "text-gray-600 bg-gray-50 border-gray-200";
-  };
-
-  const getMileValueIcon = (discount: number) => {
-    if (discount >= 30) return <Crown className="w-4 h-4" />;
-    if (discount >= 15) return <Zap className="w-4 h-4" />;
-    return <TrendingDown className="w-4 h-4" />;
-  };
-
   const formatSegmentDuration = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
