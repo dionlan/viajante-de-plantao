@@ -1,32 +1,49 @@
+// app/api/search/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// Interface para os headers
 interface RequestHeaders {
     [key: string]: string;
 }
 
-// Interface para o corpo da requisição
 interface RequestBody {
     url: string;
     headers?: RequestHeaders;
     method?: string;
     useFetch?: boolean;
     extractToken?: boolean;
-    command?: string;
 }
+
+// Timeout para evitar requests muito longos
+const FETCH_TIMEOUT = 30000; // 30 segundos
 
 export async function POST(request: NextRequest) {
     try {
         const body: RequestBody = await request.json();
-        const { url, headers = {}, method = 'GET', useFetch = false } = body;
+        const { url, headers = {}, method = 'GET', extractToken = false } = body;
 
-        console.log('🔍 Recebida requisição:', { url, method, useFetch });
+        console.log('🔍 Recebida requisição para:', url);
+        console.log('📋 Método:', method);
+        console.log('🎯 Extrair token:', extractToken);
 
-        if (useFetch) {
-            return await handleFetchRequest(url, headers, method);
-        } else {
-            return await handleCurlRequest(url, headers, method, body.extractToken || false, body.command);
+        // Validações básicas
+        if (!url || typeof url !== 'string') {
+            return NextResponse.json({
+                success: false,
+                error: 'URL é obrigatória e deve ser uma string',
+                data: null
+            }, { status: 400 });
         }
+
+        if (!url.startsWith('http')) {
+            return NextResponse.json({
+                success: false,
+                error: 'URL deve começar com http:// ou https://',
+                data: null
+            }, { status: 400 });
+        }
+
+        // SEMPRE usa fetch no Vercel
+        return await handleFetchRequest(url, headers, method, extractToken);
 
     } catch (error: unknown) {
         console.error('❌ Erro na API search:', error);
@@ -42,127 +59,139 @@ export async function POST(request: NextRequest) {
     }
 }
 
-async function handleFetchRequest(url: string, headers: RequestHeaders, method: string) {
+async function handleFetchRequest(
+    url: string,
+    headers: RequestHeaders,
+    method: string,
+    extractToken: boolean = false
+) {
     console.log('🔍 Executando fetch para:', url);
-    console.log('📋 Número de headers:', Object.keys(headers).length);
+    console.log('📋 Headers recebidos:', Object.keys(headers).length);
 
-    // Log dos headers (sem valores sensíveis)
+    // Log seguro dos headers (sem dados sensíveis)
     const safeHeaders = { ...headers };
     if (safeHeaders.Cookie) safeHeaders.Cookie = '[REDACTED]';
-    if (safeHeaders['x-latam-search-token']) safeHeaders['x-latam-search-token'] = safeHeaders['x-latam-search-token'].substring(0, 50) + '...';
+    if (safeHeaders.Authorization) safeHeaders.Authorization = '[REDACTED]';
+    if (safeHeaders['x-latam-search-token']) {
+        safeHeaders['x-latam-search-token'] = safeHeaders['x-latam-search-token'].substring(0, 10) + '...';
+    }
 
-    console.log('📋 Headers seguros:', safeHeaders);
+    console.log('🔐 Headers seguros:', safeHeaders);
 
     try {
+        // Usa AbortController para timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
         const response = await fetch(url, {
             method: method,
             headers: headers,
+            signal: controller.signal
         });
 
-        console.log('📊 Status da resposta:', response.status, response.statusText);
+        clearTimeout(timeoutId);
 
-        // Log dos headers de resposta
+        console.log('📊 Status da resposta:', response.status, response.statusText);
         console.log('📋 Headers da resposta:', Object.fromEntries(response.headers.entries()));
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Corpo do erro:', errorText.substring(0, 500));
+            let errorBody = '';
+            try {
+                errorBody = await response.text();
+                console.error('❌ Corpo do erro:', errorBody.substring(0, 500));
+            } catch {
+                // Ignora erro ao ler corpo
+            }
+
             throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
         }
 
         const data = await response.text();
         console.log('✅ Fetch concluído, tamanho:', data.length, 'caracteres');
-        //console.log('✅ Resposta completa:', data);
-        /* if (data.length < 1000) {
-            console.log('📦 Resposta completa:', data);
+
+        // Log parcial da resposta para debug
+        if (data.length > 0) {
+            console.log('📦 Primeiros 200 chars:', data.substring(0, 200));
         } else {
-            console.log('📦 Primeiros 999 chars:', data.substring(0, 999));
-            console.log('📦 Últimos 999 chars:', data.substring(data.length - 999));
-        } */
+            console.warn('⚠️ Resposta vazia');
+        }
+
+        let finalData = data;
+
+        if (extractToken) {
+            console.log('🔍 Extraindo token da resposta...');
+            const tokenMatch = data.match(/"searchToken":"([^"]*)"/);
+            if (tokenMatch && tokenMatch[1]) {
+                finalData = tokenMatch[1];
+                console.log('✅ Token extraído, tamanho:', finalData.length);
+
+                // Log parcial do token
+                if (finalData.length > 50) {
+                    console.log('🔐 Token (primeiros 50 chars):', finalData.substring(0, 50));
+                }
+            } else {
+                console.error('❌ Token não encontrado na resposta');
+                console.log('🔍 Tentando padrões alternativos...');
+
+                // Tentativa com padrões alternativos
+                const alternativePatterns = [
+                    /searchToken[=:]"([^"]*)"/,
+                    /token["']?\s*[:=]\s*["']([^"']+)["']/,
+                    /"token":"([^"]*)"/
+                ];
+
+                for (const pattern of alternativePatterns) {
+                    const match = data.match(pattern);
+                    if (match && match[1]) {
+                        finalData = match[1];
+                        console.log('✅ Token encontrado com padrão alternativo');
+                        break;
+                    }
+                }
+
+                if (finalData === data) {
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Token não encontrado na resposta',
+                        data: null
+                    }, { status: 400 });
+                }
+            }
+        }
 
         return NextResponse.json({
             success: true,
-            data: data,
+            data: finalData,
             error: null
         });
+
     } catch (error: unknown) {
         console.error('❌ Erro no fetch:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no fetch';
+
+        let errorMessage = 'Erro desconhecido no fetch';
+
+        if (error instanceof Error) {
+            if (error.name === 'AbortError') {
+                errorMessage = `Timeout: A requisição excedeu ${FETCH_TIMEOUT / 1000} segundos`;
+            } else {
+                errorMessage = error.message;
+            }
+        }
+
         return NextResponse.json({
             success: false,
             error: errorMessage,
             data: null
-        });
+        }, { status: 500 });
     }
 }
 
-async function handleCurlRequest(
-    url: string,
-    headers: RequestHeaders,
-    method: string,
-    extractToken: boolean = false,
-    command?: string
-) {
-    let finalCommand: string;
-
-    if (command) {
-        finalCommand = command;
-    } else {
-        const headersString = Object.entries(headers)
-            .map(([key, value]) => `-H "${key}: ${value}"`)
-            .join(' ');
-
-        finalCommand = `curl -s -X ${method} "${url}" ${headersString} --compressed --connect-timeout 30 --max-time 60`;
-    }
-
-    console.log('📋 Comando curl:', finalCommand);
-
-    const { exec } = await import('child_process');
-    const { promisify } = await import('util');
-    const execAsync = promisify(exec);
-
-    const { stdout, stderr } = await execAsync(finalCommand);
-
-    if (stderr && !stderr.includes('Warning')) {
-        console.error('❌ Erro no curl:', stderr);
-        return NextResponse.json({
-            success: false,
-            error: `Erro no curl: ${stderr}`,
-            data: null
-        });
-    }
-
-    if (!stdout || stdout.trim().length === 0) {
-        console.error('❌ Resposta vazia do servidor');
-        return NextResponse.json({
-            success: false,
-            error: 'Resposta vazia do servidor',
-            data: null
-        });
-    }
-
-    console.log('✅ Curl concluído, tamanho:', stdout.length, 'caracteres');
-
-    let finalData = stdout;
-    if (extractToken) {
-        console.log('🔍 Extraindo token da resposta...');
-        const tokenMatch = stdout.match(/"searchToken":"([^"]*)"/);
-        if (tokenMatch && tokenMatch[1]) {
-            finalData = tokenMatch[1];
-            console.log('✅ Token extraído:', finalData.substring(0, 50) + '...');
-        } else {
-            console.error('❌ Token não encontrado na resposta');
-            return NextResponse.json({
-                success: false,
-                error: 'Token não encontrado na resposta',
-                data: null
-            });
-        }
-    }
-
+// Health check opcional
+export async function GET() {
     return NextResponse.json({
         success: true,
-        data: finalData,
-        error: null
+        message: 'Search API is running',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV
     });
 }
