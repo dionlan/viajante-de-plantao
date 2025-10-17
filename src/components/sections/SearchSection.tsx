@@ -5,24 +5,54 @@ import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import SearchForm from "@/components/search/SearchForm";
 import SearchResults from "@/components/search/SearchResults";
-import { FlightSearch } from "@/lib/types";
+import { FlightSearch, Flight } from "@/lib/types";
+import { FlightSearchService } from "@/app/api/services/flight-search";
 
 export default function SearchSection() {
   const [searchData, setSearchData] = useState<FlightSearch | null>(null);
+  const [searchResults, setSearchResults] = useState<Flight[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [ref, inView] = useInView({
     threshold: 0.1,
     triggerOnce: true,
   });
 
   const handleSearch = async (searchParams: FlightSearch) => {
+    console.log("🚀 Iniciando busca com parâmetros:", searchParams);
+
     setIsSearching(true);
     setSearchData(searchParams);
+    setSearchError(null);
+    setSearchResults([]);
 
-    // Simular busca
-    setTimeout(() => {
+    try {
+      const results = await FlightSearchService.searchFlights(searchParams);
+      console.log("✅ Resultados obtidos:", results.length, "voos");
+
+      if (results.length === 0) {
+        setSearchError("Nenhum voo encontrado para os critérios selecionados.");
+      }
+
+      setSearchResults(results);
+    } catch (error: unknown) {
+      console.error("❌ Erro na busca:", error);
+      if (error instanceof Error) {
+        setSearchError(error.message);
+      } else {
+        setSearchError(
+          "Ocorreu um erro desconhecido na busca. Tente novamente."
+        );
+      }
+    } finally {
       setIsSearching(false);
-    }, 2000);
+    }
+  };
+
+  const handleRetry = () => {
+    if (searchData) {
+      handleSearch(searchData);
+    }
   };
 
   return (
@@ -53,19 +83,23 @@ export default function SearchSection() {
           initial={{ opacity: 0, y: 30 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="max-w-6xl mx-auto"
         >
           <SearchForm onSearch={handleSearch} isLoading={isSearching} />
         </motion.div>
-
+        <br/><br/><br/><br/><br/><br/><br/>
         {/* Search Results */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : {}}
           transition={{ delay: 0.4, duration: 0.8 }}
-          className="max-w-6xl mx-auto mt-12"
         >
-          <SearchResults searchData={searchData} isLoading={isSearching} />
+          <SearchResults
+            searchData={searchData}
+            isLoading={isSearching}
+            searchResults={searchResults}
+            error={searchError}
+            onRetry={handleRetry}
+          />
         </motion.div>
       </div>
     </section>

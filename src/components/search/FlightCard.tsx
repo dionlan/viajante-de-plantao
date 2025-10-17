@@ -1,27 +1,40 @@
+// components/search/FlightCard.tsx - Versão atualizada com cálculo do milheiro
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flight, Seller } from "@/lib/types";
+import { Flight, Seller, FlightSegment } from "@/lib/types";
 import {
   formatCurrency,
   formatMiles,
   formatTime,
   formatDate,
   getSellerLevelColor,
+  formatDuration,
+  calculateMileValue,
 } from "@/lib/utils";
 import {
-  Clock,
   ChevronDown,
-  ChevronUp,
   Phone,
   Mail,
   MessageCircle,
-  MapPin,
   User,
-  Calendar,
   BadgeCheck,
   Shield,
+  Clock,
+  MapPin,
+  PlaneIcon,
+  RefreshCw,
+  Building,
+  Luggage,
+  PlaneTakeoff,
+  PlaneLanding,
+  Shuffle,
+  Sparkles,
+  TrendingDown,
+  Zap,
+  Crown,
+  BadgePercent,
 } from "lucide-react";
 import StarRating from "@/components/ui/star-rating";
 import Image from "next/image";
@@ -34,10 +47,24 @@ interface FlightCardProps {
 
 export default function FlightCard({ flight, sellers }: FlightCardProps) {
   const [expandedSeller, setExpandedSeller] = useState<string | null>(null);
+  const [expandedItinerary, setExpandedItinerary] = useState(false);
 
   const toggleSeller = (sellerId: string) => {
     setExpandedSeller(expandedSeller === sellerId ? null : sellerId);
   };
+
+  const toggleItinerary = () => {
+    setExpandedItinerary(!expandedItinerary);
+  };
+
+  // Cálculo do valor das milhas
+  const mileCalculation = useMemo(() => {
+    return calculateMileValue(flight.milesPrice, flight.program);
+  }, [flight.milesPrice, flight.program]);
+
+  // Determina se é uma oferta premium baseada no desconto
+  const isPremiumOffer = mileCalculation.discountPercentage >= 30;
+  const isGoodOffer = mileCalculation.discountPercentage >= 15;
 
   const getAirlineLogo = (airline: string) => {
     const logos = {
@@ -62,15 +89,323 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     );
   };
 
-  const getProgramIcon = (program: string) => {
-    const icons = {
-      latam: "🔴",
-      gol: "🟠",
-      azul: "🔵",
-    };
-    return icons[program as keyof typeof icons] || "✈️";
+  const getMileValueColor = (discount: number) => {
+    if (discount >= 30)
+      return "text-emerald-600 bg-emerald-50 border-emerald-200";
+    if (discount >= 15) return "text-blue-600 bg-blue-50 border-blue-200";
+    return "text-gray-600 bg-gray-50 border-gray-200";
   };
 
+  const getMileValueIcon = (discount: number) => {
+    if (discount >= 30) return <Crown className="w-4 h-4" />;
+    if (discount >= 15) return <Zap className="w-4 h-4" />;
+    return <TrendingDown className="w-4 h-4" />;
+  };
+
+  const formatSegmentDuration = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins.toString().padStart(2, "0")}m`;
+  };
+
+  const calculateLayoverTime = (
+    currentArrival: string,
+    nextDeparture: string
+  ): number => {
+    const arrival = new Date(currentArrival);
+    const departure = new Date(nextDeparture);
+    const diffMs = departure.getTime() - arrival.getTime();
+    return Math.floor(diffMs / (1000 * 60));
+  };
+
+  const getStopsText = () => {
+    const stops = flight.stopOvers || 0;
+
+    if (stops == 0) {
+      return "Voo Direto";
+    }
+
+    return `${stops} ${stops === 1 ? "Parada" : "Paradas"}`;
+  };
+
+  const getStopsCount = () => {
+    return flight.itinerary ? flight.itinerary.length - 1 : 0;
+  };
+
+  // Seleciona entre 1 e 3 vendedores mockados para este voo
+  const getRandomSellers = (): Seller[] => {
+    const count = Math.floor(Math.random() * 3) + 1; // 1 a 3 vendedores
+    return sellers.slice(0, count);
+  };
+
+  const flightSellers = getRandomSellers();
+
+  // Render da timeline moderna do itinerário
+  const renderTimeline = () => {
+    if (!flight.itinerary || flight.itinerary.length === 0) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        className="bg-white rounded-2xl border border-gray-200 p-6 mb-4 shadow-lg"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h5 className="font-semibold text-gray-900 flex items-center gap-2 text-lg">
+            <MapPin className="w-5 h-5 text-[#317873]" />
+            Itinerário de voo ({getStopsCount()} parada
+            {getStopsCount() !== 1 ? "s" : ""})
+          </h5>
+          <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded">
+            <Clock className="w-4 h-4" />
+            <span>Duração total: {flight.duration}</span>
+          </div>
+        </div>
+
+        <div className="relative">
+          <div className="space-y-2">
+            {flight.itinerary.map((segment: FlightSegment, index: number) => (
+              <div key={index} className="relative">
+                {/* Container Principal do Segmento */}
+                <div className="relative">
+                  {/* Segmento de Voo - Partida */}
+                  <div className="relative z-10 flex gap-6 mb-2">
+                    {/* Ícone de Partida */}
+                    <div className="flex items-center justify-center flex-shrink-0 relative">
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                        <PlaneTakeoff className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+
+                    {/* Informações de Partida */}
+                    <div className="flex-1 bg-white p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-baseline gap-2">
+                            <div className="text-xl font-bold text-gray-900">
+                              {formatTime(segment.departure)}
+                            </div>
+                            <div className="text-xl font text-[#317873]">
+                              {segment.origin}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <span className="text-sm">{flight.originCity}</span>
+                            {segment.flight.departureTerminal && (
+                              <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border">
+                                Terminal {segment.flight.departureTerminal}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Informações do Voo */}
+                        <div className="text-right">
+                          <div className="font-mono text-sm font-bold text-gray-900 mb-1">
+                            {segment.flight.airlineCode}
+                            {segment.flight.flightNumber}
+                          </div>
+                          <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                            {segment.aircraftLeaseText}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha de Conexão entre Partida e Chegada */}
+                  <div className="relative z-0 flex gap-6 mb-2">
+                    <div className="flex-shrink-0 w-10 flex justify-center">
+                      <div className="w-1 h-12 relative">
+                        {/* Efeito gradiente - transparente nas bordas, forte no centro */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-green-400/30 via-green-500/80 to-blue-400/30 rounded-full">
+                          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/40 to-transparent opacity-50" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 flex items-center">
+                      <div className="flex items-center gap-3 bg-blue-50 px-4 py-2 rounded border border-blue-200 w-full">
+                        <Clock className="w-4 h-4 text-blue-600" />
+                        <div className="flex-1">
+                          <div className="text-sm font-semibold text-blue-700">
+                            Tempo de voo:{" "}
+                            {formatSegmentDuration(segment.duration)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Segmento de Voo - Chegada */}
+                  <div className="relative z-10 flex gap-6">
+                    {/* Ícone de Chegada */}
+                    <div className="flex items-center justify-center flex-shrink-0 relative">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                        <PlaneLanding className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+
+                    {/* Informações de Chegada */}
+                    <div className="flex-1 bg-white p-4 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex flex-row gap-2">
+                            <div className="text-xl font-bold text-gray-900">
+                              {formatTime(segment.arrival)}
+                            </div>
+                            <div className="text-xl text-blue-500">
+                              {segment.destination}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <span className="text-sm">
+                              {flight.destinationCity}
+                            </span>
+                            {segment.flight.arrivalTerminal && (
+                              <span className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded border">
+                                Terminal {segment.flight.arrivalTerminal}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-sm font-semibold text-blue-700 mb-1">
+                            Chegada
+                          </div>
+                          <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                            {new Date(segment.arrival).toLocaleDateString(
+                              "pt-BR",
+                              {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Conexão (se não for o último segmento) */}
+                  {index < flight.itinerary!.length - 1 && (
+                    <div className="relative z-10 flex gap-6 mt-4">
+                      {/* Linha de Conexão entre Segmentos */}
+
+                      {/* Ícone da Conexão */}
+                      <div className="flex items-center justify-center flex-shrink-0 relative">
+                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                          <RefreshCw className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+
+                      {/* Informações da Conexão */}
+                      <div className="flex-1 bg-amber-50 p-5 border border-amber-200 shadow-sm rounded-2xl transition-all hover:shadow-md">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center text-amber-800 font-poppins">
+                          {/* Local da Conexão */}
+                          <div className="flex items-start lg:items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                              <Shuffle className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-sm">
+                                Conexão em{" "}
+                                <span className="text-amber-700">
+                                  {segment.destination}
+                                </span>
+                              </div>
+                              <div className="text-xs text-amber-600 mt-1">
+                                Troca de aeronave • Embarque no próximo voo
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Tempo de Espera */}
+                          <div className="flex justify-center">
+                            <div className="flex items-center gap-3 bg-amber-50 px-4 py-2 rounded-2xl border border-amber-300 shadow-sm">
+                              <Clock className="w-4 h-4 text-amber-600" />
+                              <div className="text-center">
+                                <div className="font-semibold text-sm text-amber-800">
+                                  {formatSegmentDuration(
+                                    calculateLayoverTime(
+                                      segment.arrival,
+                                      flight.itinerary![index + 1].departure
+                                    )
+                                  )}
+                                </div>
+                                <div className="text-xs text-amber-600 font-medium">
+                                  Tempo de espera
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Próximo Voo */}
+                          <div className="flex items-start lg:items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-full">
+                              <PlaneIcon className="w-5 h-5 text-amber-600" />
+                            </div>
+                            <div>
+                              <div className="font-semibold text-sm">
+                                {
+                                  flight.itinerary![index + 1].flight
+                                    .airlineCode
+                                }
+                                {
+                                  flight.itinerary![index + 1].flight
+                                    .flightNumber
+                                }
+                              </div>
+                              <div className="text-xs text-amber-700 mt-1">
+                                Embarque:{" "}
+                                <span className="font-medium text-amber-800">
+                                  {formatTime(
+                                    flight.itinerary![index + 1].departure
+                                  )}
+                                </span>
+                              </div>
+                              <div className="text-xs text-amber-600 mt-1">
+                                {flight.itinerary![index + 1].origin} →{" "}
+                                {flight.itinerary![index + 1].destination}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Resumo do Itinerário */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            {[
+              { label: "Segmentos", value: flight.itinerary.length },
+              { label: "Duração total", value: flight.duration },
+              { label: "Operadora", value: flight.airline },
+              { label: "Classe", value: flight.class },
+            ].map((item, index) => (
+              <div key={index} className="space-y-1">
+                <div className="text-lg font-bold text-[#317873]">
+                  {item.value}
+                </div>
+                <div className="text-xs text-gray-600">{item.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Componente de contato
   const ContactButton = ({
     href,
     icon,
@@ -97,159 +432,305 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      className="p-8 hover:bg-white transition-all duration-300 border-b border-gray-100/50 last:border-b-0"
+      className="p-4 hover:bg-white transition-all duration-300 border-b border-gray-100/50 last:border-b-0 bg-gray-50/30"
     >
-      <div className="flex flex-col xl:flex-row gap-8">
+      <div className="flex flex-col xl:flex-row gap-2">
         {/* Informações do Voo */}
         <div className="flex-1">
-          {/* Header do Voo */}
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-            <div className="flex items-start gap-4">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="w-14 h-14 bg-white rounded-2xl shadow-lg flex items-center justify-center border border-gray-100"
-              >
-                <div className="relative w-10 h-10">
-                  <Image
-                    src={getAirlineLogo(flight.airline)}
-                    alt={`Logo ${flight.airline}`}
-                    fill
-                    className="object-contain"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = "none";
-                    }}
-                  />
-                </div>
-              </motion.div>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  {/*                   <h4 className="font-bold text-gray-900 text-xl font-poppins">
-                    {flight.airline}
-                  </h4> */}
-                  <span
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border ${getProgramColor(
-                      flight.program
-                    )}`}
+          {/* Container Principal com Borda Única */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300">
+            {/* Header do Voo */}
+            <div className="p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div className="flex items-center justify-center gap-4">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    className="w-14 h-14 bg-white rounded-2xl shadow-lg flex items-center justify-center border border-gray-100"
                   >
-                    <span className="flex items-center gap-1.5">
-                      <span className="text-xs">
-                        {getProgramIcon(flight.program)}
-                      </span>
-                      {flight.program === "latam"
-                        ? "LATAM Pass"
-                        : flight.program === "gol"
-                        ? "Smiles"
-                        : "TudoAzul"}
-                    </span>
-                  </span>
-                </div>
-                <p className="text-gray-600 flex items-center gap-3 text-sm">
-                  <span className="font-mono bg-gray-100 px-2 py-1 rounded-lg">
-                    Voo {flight.flightNumber}
-                  </span>
-                  <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                  <span className="font-semibold text-[#317873] bg-[#317873]/10 px-3 py-1 rounded-full">
-                    {flight.class}
-                  </span>
-                </p>
-              </div>
-            </div>
+                    <div className="relative w-10 h-10">
+                      <Image
+                        src={getAirlineLogo(flight.airline)}
+                        alt={`Logo ${flight.airline}`}
+                        fill
+                        className="object-contain"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = "none";
+                        }}
+                      />
+                    </div>
+                  </motion.div>
 
-            {/* Preço Principal */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-center sm:text-right"
-            >
-              <div className="text-md text-gray-700 font-poppins">
-                A partir de{" "}
-                <span className="text-xl font-bold text-[#317873]">
-                  {formatMiles(flight.milesPrice)} milhas
-                </span>
-              </div>
-              <div className="text-md text-gray-600 mt-1">
-                ou{" "}
-                <span className="font-bold text-[#317873]">
-                  {formatCurrency(flight.cashPrice)}
-                </span>{" "}
-                por viajante
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Timeline do Voo */}
-          <div className="bg-gradient-to-r from-gray-50 to-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center font-poppins">
-              {/* Origem */}
-              <div className="text-center">
-                <div className="text-xl font-bold text-gray-900 mb-1">
-                  <span className="text-[#317873]">{flight.origin}</span>{" "}
-                  <span className="font-normal text-gray-700">
-                    {formatTime(flight.departure)}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-600">{flight.originCity}</div>
-              </div>
-
-              {/* Duração */}
-              <div className="text-center">
-                <div
-                  id="ContainerFlightInfo"
-                  role="presentation"
-                  className="inline-flex flex-col items-center"
-                >
-                  <span className="text-gray-600 text-sm font-semibold tracking-wide uppercase mb-1">
-                    Duração
-                  </span>
-                  <span className="text-gray-800 text-base font-medium">
-                    {flight.duration}
-                  </span>
-
-                  {/* Alerta de troca de aeroporto (opcional) */}
-                  {flight.stops > 0 && (
-                    <div
-                      role="alert"
-                      className="mt-2 flex items-center justify-center gap-2 bg-yellow-50 border border-yellow-300 text-yellow-800 px-3 py-1 rounded-full text-sm font-medium"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={2}
-                        stroke="currentColor"
-                        className="w-4 h-4"
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h4 className="font-bold text-gray-900 text-xl font-poppins">
+                        {flight.airline}
+                      </h4>
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium border ${getProgramColor(
+                          flight.program
+                        )}`}
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M12 9v2m0 4h.01M4.293 4.293a1 1 0 011.414 0L12 10.586l6.293-6.293a1 1 0 111.414 1.414L13.414 12l6.293 6.293a1 1 0 01-1.414 1.414L12 13.414l-6.293 6.293a1 1 0 01-1.414-1.414L10.586 12 4.293 5.707a1 1 0 010-1.414z"
-                        />
-                      </svg>
-                      <span>Troca de aeroporto</span>
+                        {flight.program === "latam"
+                          ? "LATAM Pass"
+                          : flight.program === "gol"
+                          ? "Smiles"
+                          : "TudoAzul"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="px-3 py-1 bg-gray-50 text-gray-700 text-sm font-medium rounded-full border border-gray-200">
+                        Voo {flight.flightNumber}
+                      </span>
+                      <span className="px-3 py-1 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-200">
+                        {flight.class}
+                      </span>
+                      {flight.brands?.[0] && (
+                        <span className="flex items-center gap-1 text-sm text-gray-600 bg-white px-3 py-1.5 rounded-full border">
+                          <Luggage className="w-4 h-4" />
+                          Bagagem:{" "}
+                          {flight.brands[0].cabin.id === "Y"
+                            ? "1+1"
+                            : "Incluída"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preço Principal - ATUALIZADO COM CÁLCULO DO MILHEIRO */}
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-center sm:text-right space-y-3"
+                >
+                  {/* Preço em Milhas */}
+                  {flight.milesPrice > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-sm text-gray-600 font-medium">
+                        Preço em Milhas
+                      </div>
+                      <div className="text-2xl font-bold text-[#317873] font-poppins">
+                        {formatMiles(flight.milesPrice)}
+                        <span className="text-lg font-normal text-gray-600 ml-1">
+                          milhas
+                        </span>
+                      </div>
                     </div>
                   )}
+
+                  {/* Cálculo do Milheiro - NOVA SEÇÃO */}
+                  {flight.milesPrice > 0 && mileCalculation && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className={`p-3 rounded-xl border-2 ${getMileValueColor(
+                        mileCalculation.discountPercentage
+                      )} transition-all duration-300 hover:shadow-md`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          {getMileValueIcon(mileCalculation.discountPercentage)}
+                          <span className="font-semibold text-sm">
+                            Valor Calculado
+                          </span>
+                        </div>
+                        {isPremiumOffer && (
+                          <BadgePercent className="w-4 h-4 text-emerald-600" />
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-gray-600">
+                            Nosso preço:
+                          </span>
+                          <span className="text-lg font-bold text-gray-900">
+                            {formatCurrency(mileCalculation.calculatedValue)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs text-gray-600">
+                            Preço original:
+                          </span>
+                          <span className="text-sm line-through text-gray-500">
+                            {formatCurrency(flight.cashPrice)}
+                          </span>
+                        </div>
+
+                        {mileCalculation.discountPercentage > 0 && (
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-200/50">
+                            <span className="text-xs font-medium">
+                              Economia:
+                            </span>
+                            <span
+                              className={`text-sm font-bold ${
+                                mileCalculation.discountPercentage >= 30
+                                  ? "text-emerald-600"
+                                  : mileCalculation.discountPercentage >= 15
+                                  ? "text-blue-600"
+                                  : "text-gray-600"
+                              }`}
+                            >
+                              {mileCalculation.discountPercentage}%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Badge de Oferta Especial */}
+                      {isPremiumOffer && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center gap-1 mt-2 pt-2 border-t border-emerald-200/50"
+                        >
+                          <Sparkles className="w-3 h-3 text-emerald-500" />
+                          <span className="text-xs font-semibold text-emerald-700">
+                            Oferta Premium
+                          </span>
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {/* Preço em Dinheiro (fallback) */}
+                  {flight.milesPrice === 0 && flight.cashPrice > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-sm text-gray-600 font-medium">
+                        Preço em Reais
+                      </div>
+                      <div className="text-2xl font-bold text-[#317873]">
+                        {formatCurrency(flight.cashPrice)}
+                      </div>
+                    </div>
+                  )}
+
+                  {flight.milesPrice === 0 && flight.cashPrice === 0 && (
+                    <div className="text-md text-gray-500 font-poppins">
+                      Preços indisponíveis
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+            </div>
+
+            {/* Separador suave entre header e informações do voo */}
+            <div className="px-6">
+              <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+            </div>
+
+            {/* Informações do Voo */}
+            <div className="p-6">
+              {/* Informações Principais do Voo */}
+              <div className="flex items-center justify-between font-poppins">
+                {/* Origem */}
+                <div className="text-center flex-1">
+                  <div className="flex flex-row items-center justify-center gap-2">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {flight.departureTime || formatTime(flight.departure)}
+                    </div>
+                    <div className="text-2xl font text-[#317873]">
+                      {flight.origin}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {flight.originCity}
+                  </div>
+                </div>
+
+                {/* Linha Conectora */}
+                <div className="flex-1 flex items-center justify-center px-4">
+                  <div className="h-0.5 bg-gray-300 flex-1"></div>
+                </div>
+
+                {/* Duração */}
+                <div className="text-center flex-1">
+                  <div className="text-sm text-gray-600">Duração</div>
+                  <div className="flex items-center justify-center gap-2 text-gray-700">
+                    <span className="font-semibold text-base">
+                      {flight.duration}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Linha Conectora */}
+                <div className="flex-1 flex items-center justify-center px-4">
+                  <div className="h-0.5 bg-gray-300 flex-1"></div>
+                </div>
+
+                {/* Destino */}
+                <div className="text-center flex-1">
+                  <div className="flex flex-row items-center justify-center gap-2">
+                    <div className="text-2xl font-bold text-gray-900">
+                      {flight.arrivalTime || formatTime(flight.arrival)}
+                    </div>
+                    <div className="text-2xl text-[#317873]">
+                      {flight.destination}
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {flight.destinationCity}
+                  </div>
                 </div>
               </div>
 
-              {/* Destino */}
-              <div className="text-center">
-                <div className="text-xl font-bold text-gray-900 mb-1">
-                  <span className="text-[#317873]">{flight.destination}</span>{" "}
-                  <span className="font-normal text-gray-700">
-                    {formatTime(flight.arrival)}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-600">
-                  {flight.destinationCity}
+              {/* Informações Secundárias */}
+              <div className="mt-6 pt-6 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  {/* Tipo de Voo - Alinhado à Esquerda */}
+                  <div className="flex items-center gap-6">
+                    {flight.stopOvers == 0 ? (
+                      <div className="text-sm text-[#317873] font-medium hover:text-[#49796b] transition-colors flex items-center gap-3 bg-blue-50 px-4 py-2 rounded-xl">
+                        Direto
+                      </div>
+                    ) : (
+                      <motion.button
+                        onClick={toggleItinerary}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="text-sm text-[#317873] font-medium hover:text-[#49796b] transition-colors flex items-center gap-3 bg-blue-50 px-4 py-2 rounded-xl"
+                      >
+                        <span>{getStopsText()}</span>
+                        <ChevronDown
+                          className={`w-4 h-4 transition-transform ${
+                            expandedItinerary ? "rotate-180" : ""
+                          }`}
+                        />
+                      </motion.button>
+                    )}
+                  </div>
+
+                  {/* Operadora - Alinhado à Direita */}
+                  <div className="text-md text-gray-700 font-poppins">
+                    Operado pela{" "}
+                    <span className="font-bold text-gray-900">
+                      {flight.airline}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Itinerário Expandido - Dentro da mesma borda */}
+            <AnimatePresence>
+              {expandedItinerary && (
+                <>
+                  {/* Separador suave entre informações do voo e itinerário expandido */}
+                  <div className="px-6">
+                    <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                  </div>
+
+                  <div className="p-6">{renderTimeline()}</div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Vendedores */}
+        {/* Vendedores - Sidebar - AGORA SEMPRE VISÍVEL */}
         <div className="xl:w-96 xl:border-l xl:border-l-gray-200 xl:pl-8">
           <div className="mb-6">
             <h5 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-3">
@@ -258,7 +739,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
               </div>
               Vendedores Verificados
               <span className="text-sm text-gray-500 font-normal">
-                ({sellers.length})
+                ({flightSellers.length})
               </span>
             </h5>
             <p className="text-sm text-gray-600 flex items-center gap-2">
@@ -268,7 +749,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
           </div>
 
           <div className="space-y-4">
-            {sellers.map((seller, index) => (
+            {flightSellers.map((seller, index) => (
               <motion.div
                 key={seller.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -337,7 +818,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                   </div>
                 </div>
 
-                {/* Detalhes Expandidos */}
+                {/* Detalhes Expandidos do Vendedor */}
                 <AnimatePresence>
                   {expandedSeller === seller.id && (
                     <motion.div
@@ -377,7 +858,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                           <ContactButton
                             href={`tel:${seller.contact.phone}`}
                             icon={<Phone className="w-4 h-4" />}
-                            className="!bg-[#317873] !text-white hover:!bg-[#49796b]"
+                            className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
                           >
                             Ligar
                           </ContactButton>
@@ -385,6 +866,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                           <ContactButton
                             href={`mailto:${seller.contact.email}`}
                             icon={<Mail className="w-4 h-4" />}
+                            className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
                           >
                             E-mail
                           </ContactButton>

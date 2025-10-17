@@ -337,7 +337,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                 Buscando voos...
               </span>
             ) : (
-              "🎯 Buscar Passagens com Milhas"
+              "Buscar Passagens com Milhas"
             )}
           </Button>
         </motion.div>

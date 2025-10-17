@@ -28,16 +28,15 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
 class LatamMilesScraper:
     def __init__(self, headless: bool = True):
-        # Configurar caminhos baseados no sistema operacional
-        if os.name == 'nt':  # Windows
+        if os.name == 'nt':
             self.chrome_path = "C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe"
-        else:  # Linux/Mac
+        else:
             self.chrome_path = "/usr/bin/google-chrome"
         
         self.automation_profile_path = os.path.join(
@@ -82,55 +81,116 @@ class LatamMilesScraper:
         return options
 
     def init_driver(self):
-        """Inicializa o WebDriver de forma rápida e maximizada"""
         try:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=self.chrome_options)
             
-            # Garantir que está maximizado mesmo se a opção não funcionar
             self.driver.maximize_window()
             
             self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            self.wait = WebDriverWait(self.driver, 10)
+            self.wait = WebDriverWait(self.driver, 15)
             return True
         except Exception as e:
             print(f"Erro ao inicializar WebDriver: {e}")
             return False
 
-    def extract_miles_balance(self):
-        """Tenta extrair o saldo de milhas diretamente - ESTRATÉGIA PRINCIPAL"""
+    def is_user_logged_in(self):
         try:
-            print("Tentando extrair milhas diretamente...")
+            print("Verificando estado de login...")
             
-            # Seletores diretos para as milhas
-            miles_selectors = [
-                (By.XPATH, "//p[contains(text(), 'Saldo total:')]"),
-                (By.XPATH, "//*[contains(text(), 'Saldo total')]"),
-                (By.XPATH, "//*[contains(text(), 'milhas')]"),
+            try:
+                logout_elements = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/logout')]")
+                if logout_elements:
+                    for element in logout_elements:
+                        if element.is_displayed():
+                            print("USUARIO LOGADO: Encontrado href='/logout' no menu")
+                            return True
+            except NoSuchElementException:
+                pass
+            
+            user_menu_indicators = [
+                "//*[contains(text(), 'Minhas Viagens')]",
+                "//*[contains(text(), 'My Trips')]",
+                "//*[contains(@class, 'user-menu')]",
+                "//*[contains(@class, 'profile')]",
+                "//*[contains(text(), 'Minha Conta')]",
+                "//*[contains(text(), 'My Account')]",
+                "//button[contains(text(), 'Sair')]",
+                "//button[contains(text(), 'Logout')]",
             ]
             
-            for by, selector in miles_selectors:
+            for selector in user_menu_indicators:
                 try:
-                    miles_element = self.wait.until(
-                        EC.presence_of_element_located((by, selector))
-                    )
-                    if miles_element:
-                        miles_text = miles_element.text
-                        print(f"Texto encontrado: {miles_text}")
-                        
-                        # Extrair APENAS O NÚMERO das milhas
-                        miles_match = re.search(r'(\d+(?:\.\d+)*)', miles_text)
-                        if miles_match:
-                            miles_balance = int(miles_match.group(1).replace('.', ''))
-                            print(f"Saldo de milhas extraído: {miles_balance}")
-                            return miles_balance
-                        else:
-                            # Se não encontrar número, retorna 0
-                            print("Nenhum número encontrado no texto, retornando 0")
-                            return 0
-                except TimeoutException:
+                    element = self.driver.find_element(By.XPATH, selector)
+                    if element and element.is_displayed():
+                        print(f"USUARIO LOGADO: Encontrado elemento '{selector}'")
+                        return True
+                except NoSuchElementException:
                     continue
             
+            login_form_indicators = [
+                "//input[@id='form-input--alias']",
+                "//input[@type='email']",
+                "//input[@type='password']",
+                "//button[contains(text(), 'Entrar')]",
+                "//button[contains(text(), 'Login')]",
+                "//button[contains(text(), 'Sign in')]",
+            ]
+            
+            for selector in login_form_indicators:
+                try:
+                    element = self.driver.find_element(By.XPATH, selector)
+                    if element and element.is_displayed():
+                        print(f"USUARIO NAO LOGADO: Encontrado formulario de login")
+                        return False
+                except NoSuchElementException:
+                    continue
+            
+            print("Estado de login indeterminado")
+            return False
+            
+        except Exception as e:
+            print(f"Erro ao verificar login: {e}")
+            return False
+
+    def extract_miles_balance(self):
+        try:
+            print("Tentando extrair saldo de milhas...")
+            
+            time.sleep(3)
+            
+            miles_selectors = [
+                "//p[contains(text(), 'Saldo total:')]",
+                "//*[contains(text(), 'Saldo total')]",
+                "//*[contains(text(), 'milhas')]",
+                "//*[contains(@class, 'balance')]",
+                "//*[contains(@class, 'miles')]",
+                "//*[contains(@class, 'points')]",
+            ]
+            
+            for selector in miles_selectors:
+                try:
+                    print(f"Procurando por: {selector}")
+                    element = self.wait.until(EC.presence_of_element_located((By.XPATH, selector)))
+                    if element:
+                        miles_text = element.text
+                        print(f"Texto encontrado: {miles_text}")
+                        
+                        miles_match = re.search(r'(\\d+(?:\\.\\d+)*)', miles_text)
+                        if miles_match:
+                            miles_balance = int(miles_match.group(1).replace('.', ''))
+                            print(f"Saldo de milhas extraido: {miles_balance}")
+                            return miles_balance
+                        else:
+                            print("Nenhum numero encontrado no texto")
+                except TimeoutException:
+                    print(f"Timeout com seletor: {selector}")
+                    continue
+                except Exception as e:
+                    print(f"Erro com seletor {selector}: {e}")
+                    continue
+            
+            print("Nao foi possivel encontrar saldo de milhas")
             return 0
             
         except Exception as e:
@@ -138,9 +198,8 @@ class LatamMilesScraper:
             return 0
 
     def enter_username(self, username: str) -> bool:
-        """Preenche o formulário de usuário de forma rápida"""
         try:
-            print("Preenchendo usuário...")
+            print("Preenchendo usuario...")
             
             username_field = self.wait.until(
                 EC.presence_of_element_located((By.ID, "form-input--alias"))
@@ -157,11 +216,10 @@ class LatamMilesScraper:
             return True
             
         except Exception as e:
-            print(f"Erro ao preencher usuário: {e}")
+            print(f"Erro ao preencher usuario: {e}")
             return False
 
     def enter_password(self, password: str) -> bool:
-        """Preenche o formulário de senha de forma rápida"""
         try:
             print("Preenchendo senha...")
             
@@ -183,77 +241,84 @@ class LatamMilesScraper:
             print(f"Erro ao preencher senha: {e}")
             return False
 
-    def login_and_get_miles(self, username: str, password: str) -> int:
-        """Processo otimizado: tenta milhas direto, se não faz login"""
+    def get_miles_with_smart_login(self, username: str, password: str) -> int:
         try:
-            print("Iniciando processo LATAM...")
+            print("Iniciando processo LATAM com verificacao de login...")
             
-            # Inicializar driver
             if not self.init_driver():
                 return 0
             
-            # ESTRATÉGIA PRINCIPAL: Tentar acessar direto e buscar milhas
-            print("Acessando página diretamente...")
+            print("Acessando pagina da conta diretamente...")
+            self.driver.get("https://latampass.com/myaccount")
+            time.sleep(4)
+            
+            if self.is_user_logged_in():
+                print("Usuario ja esta logado - extraindo milhas diretamente")
+                miles_balance = self.extract_miles_balance()
+                if miles_balance > 0:
+                    print(f"Sucesso: {miles_balance} milhas obtidas sem login")
+                    self.driver.quit()
+                    return miles_balance
+                else:
+                    print("Usuario logado mas nao foi possivel extrair milhas")
+            
+            print("Usuario nao logado - iniciando processo de autenticacao...")
+            
             self.driver.get("https://latampass.com/myaccount")
             time.sleep(3)
             
-            # Tentar extrair milhas imediatamente
-            miles_balance = self.extract_miles_balance()
-            if miles_balance is not None and miles_balance >= 0:
-                print(f"Milhas obtidas diretamente: {miles_balance}")
+            if not self.enter_username(username):
+                print("Falha na etapa do usuario")
+                self.driver.quit()
+                return 0
+            
+            if not self.enter_password(password):
+                print("Falha na etapa da senha")
+                self.driver.quit()
+                return 0
+            
+            time.sleep(3)
+            if self.is_user_logged_in():
+                print("Login realizado com sucesso")
+                
+                self.driver.get("https://latampass.latam.com/en_br/myaccount")
+                time.sleep(3)
+                
+                miles_balance = self.extract_miles_balance()
                 self.driver.quit()
                 return miles_balance
-            
-            # ESTRATÉGIA SECUNDÁRIA: Fazer login
-            print("Milhas não encontradas. Iniciando login...")
-            
-            # Primeira etapa: usuário
-            if not self.enter_username(username):
-                self.driver.quit()
-                return 0
-            
-            # Segunda etapa: senha
-            if not self.enter_password(password):
-                self.driver.quit()
-                return 0
-            
-            # Após login, tentar novamente extrair milhas
-            time.sleep(3)
-            self.driver.get("https://latampass.com/myaccount")
-            time.sleep(2)
-            
-            miles_balance = self.extract_miles_balance()
-            
-            if miles_balance is not None and miles_balance >= 0:
-                print(f"Milhas obtidas após login: {miles_balance}")
             else:
-                print("Não foi possível obter milhas")
-                miles_balance = 0
-            
-            self.driver.quit()
-            return miles_balance if miles_balance is not None else 0
+                print("Falha no login - credenciais invalidas")
+                self.driver.quit()
+                return 0
             
         except Exception as e:
-            print(f"Erro no processo: {e}")
+            print(f"Erro no processo principal: {e}")
             if self.driver:
                 self.driver.quit()
             return 0
 
-# Execução principal
 if __name__ == "__main__":
     username = "${username}"
     password = "${password}"
     
-    print("Iniciando scraper LATAM...")
-    scraper = LatamMilesScraper(headless=False)
-    miles_balance = scraper.login_and_get_miles(username, password)
+    print("=" * 60)
+    print("INICIANDO SCRAPER LATAM PASS - VERIFICACAO DE LOGIN")
+    print("=" * 60)
     
-    # SEMPRE retornar JSON válido
+    scraper = LatamMilesScraper(headless=False)
+    miles_balance = scraper.get_miles_with_smart_login(username, password)
+    
     result = {
-        "success": True if miles_balance >= 0 else False,
-        "miles": miles_balance if miles_balance >= 0 else 0,
-        "message": f"{miles_balance:,} milhas obtidas com sucesso".replace(",", ".") if miles_balance >= 0 else "❌ Não foi possível obter as milhas"
+        "success": True,
+        "miles": miles_balance,
+        "message": f"{miles_balance:,} milhas obtidas com sucesso".replace(",", ".")
     }
+    
+    print("=" * 60)
+    print("RESULTADO FINAL:")
+    print(json.dumps(result, indent=2))
+    print("=" * 60)
     
     print(json.dumps(result))
 `;
@@ -275,7 +340,7 @@ if __name__ == "__main__":
             let output = '';
             let errorOutput = '';
 
-            console.log('🐍 Executando script Python...');
+            console.log('Executando script Python...');
 
             const pythonProcess = spawn('py', [scriptPath]);
 
@@ -292,51 +357,56 @@ if __name__ == "__main__":
             });
 
             pythonProcess.on('close', (code) => {
-                console.log(`🐍 Processo Python finalizado com código: ${code}`);
-                console.log(`🐍 OUTPUT COMPLETO: ${output}`);
+                console.log(`Processo Python finalizado com codigo: ${code}`);
 
                 try {
-                    // Tentar extrair JSON da saída - método mais robusto
-                    const jsonMatch = output.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        const parsedResult = JSON.parse(jsonMatch[0]);
-                        console.log('✅ Resultado parseado:', parsedResult);
+                    // ESTRATÉGIA SIMPLES: Buscar a última linha que é JSON puro
+                    const lines = output.split('\n').map(line => line.trim());
+                    const jsonLines = lines.filter(line =>
+                        line.startsWith('{') && line.endsWith('}') &&
+                        line.includes('"success"') &&
+                        line.includes('"miles"') &&
+                        line.includes('"message"')
+                    );
+
+                    if (jsonLines.length > 0) {
+                        // Pegar o último JSON encontrado (deve ser o resultado final)
+                        const lastJson = jsonLines[jsonLines.length - 1];
+                        console.log('JSON encontrado:', lastJson);
+                        const parsedResult = JSON.parse(lastJson);
+                        console.log('Resultado parseado:', parsedResult);
                         resolve(parsedResult);
                     } else {
-                        console.log('❌ Não foi possível encontrar JSON na saída, usando fallback');
-                        // Fallback: tentar extrair número das milhas do output
-                        const milesMatch = output.match(/SALDO DE MILHAS:?\s*(\d+)/i) ||
-                            output.match(/milhas.*?(\d+)/i) ||
-                            output.match(/Saldo.*?(\d+)/i);
+                        // Fallback para quando não encontrar JSON
+                        console.log('Nenhum JSON valido encontrado, analisando output...');
 
-                        if (milesMatch) {
-                            const miles = parseInt(milesMatch[1]) || 0;
+                        if (output.includes('milhas obtidas com sucesso')) {
                             resolve({
                                 success: true,
-                                miles: miles,
-                                message: `✅ ${miles.toLocaleString('pt-BR')} milhas obtidas com sucesso`
+                                miles: 0,
+                                message: 'Processo concluido com sucesso'
                             });
                         } else {
                             resolve({
                                 success: false,
                                 miles: 0,
-                                message: 'Erro: Não foi possível processar a resposta do servidor LATAM'
+                                message: 'Falha no processo de autenticacao'
                             });
                         }
                     }
                 } catch (parseError) {
-                    console.error('❌ Erro ao parsear JSON:', parseError);
+                    console.error('Erro ao parsear JSON:', parseError);
                     resolve({
                         success: false,
                         miles: 0,
-                        message: `Erro de comunicação: ${errorOutput || 'Verifique as credenciais'}`
+                        message: 'Erro no processamento dos dados'
                     });
                 }
 
                 // Limpar arquivo temporário
                 try {
                     unlinkSync(scriptPath);
-                    console.log('🧹 Arquivo temporário removido');
+                    console.log('Arquivo temporario removido');
                 } catch (cleanupError) {
                     console.error('Erro ao limpar arquivo:', cleanupError);
                 }
@@ -345,11 +415,11 @@ if __name__ == "__main__":
             // Timeout de 3 minutos
             setTimeout(() => {
                 pythonProcess.kill();
-                console.log('⏰ Timeout do processo Python');
+                console.log('Timeout do processo Python');
                 resolve({
                     success: false,
                     miles: 0,
-                    message: 'Timeout: O processo demorou muito para responder. Tente novamente.'
+                    message: 'Timeout: O processo demorou muito para responder.'
                 });
             }, 180000);
 

@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flight, Seller, FlightSearch } from "@/lib/types";
-import { mockFlights, mockSellers } from "@/lib/mockData";
+import { Flight, FlightSearch } from "@/lib/types";
+import { mockSellers } from "@/lib/mockData";
 import FlightCard from "./FlightCard";
 import { Plane, Filter, SortAsc, SlidersHorizontal, X } from "lucide-react";
 import FilterDropdown from "@/components/ui/filter-dropdown";
@@ -13,6 +13,9 @@ import { formatDate } from "@/lib/utils";
 interface SearchResultsProps {
   searchData: FlightSearch | null;
   isLoading: boolean;
+  searchResults: Flight[];
+  error: string | null;
+  onRetry?: () => void; // Nova prop
 }
 
 interface Filters {
@@ -25,6 +28,9 @@ interface Filters {
 export default function SearchResults({
   searchData,
   isLoading,
+  searchResults,
+  error,
+  onRetry, // Adicione esta prop
 }: SearchResultsProps) {
   const [filters, setFilters] = useState<Filters>({
     airline: "all",
@@ -34,8 +40,8 @@ export default function SearchResults({
   });
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Simular dados da API
-  const flights = searchData ? mockFlights : [];
+  // Usa os resultados reais da API
+  const flights = searchResults;
   const sellers = mockSellers;
 
   // Filtros e ordenação
@@ -48,9 +54,9 @@ export default function SearchResults({
 
       // Filtro por paradas
       if (filters.stops !== "all") {
-        if (filters.stops === "direct" && !flight.direct) return false;
-        if (filters.stops === "1" && flight.stops !== 1) return false;
-        if (filters.stops === "2" && flight.stops < 2) return false;
+        if (filters.stops === "direct" && !flight.stopOvers) return false;
+        if (filters.stops === "1" && flight.stopOvers !== 1) return false;
+        if (filters.stops === "2" && flight.stopOvers < 2) return false;
       }
 
       // Filtro por preço
@@ -109,17 +115,17 @@ export default function SearchResults({
     {
       value: "direct",
       label: "Voo direto",
-      count: flights.filter((f) => f.direct).length,
+      count: flights.filter((f) => f.stopOvers).length,
     },
     {
       value: "1",
       label: "1 parada",
-      count: flights.filter((f) => f.stops === 1).length,
+      count: flights.filter((f) => f.stopOvers === 1).length,
     },
     {
       value: "2",
       label: "2+ paradas",
-      count: flights.filter((f) => f.stops >= 2).length,
+      count: flights.filter((f) => f.stopOvers >= 2).length,
     },
   ];
 
@@ -133,6 +139,34 @@ export default function SearchResults({
   const handleFilterChange = (filterType: keyof Filters, value: string) => {
     setFilters((prev) => ({ ...prev, [filterType]: value }));
   };
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 text-center border border-white/20"
+      >
+        <div className="w-16 h-16 bg-red-100 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+          <X className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-2xl font-bold text-gray-800 mb-2 font-poppins">
+          Erro na busca
+        </h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <div className="flex gap-3 justify-center">
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+          {onRetry && ( // Agora onRetry está definido
+            <Button variant="outline" onClick={onRetry}>
+              Tentar Novamente
+            </Button>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -231,7 +265,10 @@ export default function SearchResults({
               className="text-gray-600 text-lg"
             >
               {searchData.origin} → {searchData.destination} •{" "}
-               {formatDate(searchData.departureDate)}
+              {formatDate(searchData.departureDate)}
+              {searchData.tripType === "roundtrip" &&
+                searchData.returnDate &&
+                ` • ${formatDate(searchData.returnDate)}`}
             </motion.p>
           </div>
 
@@ -312,7 +349,7 @@ export default function SearchResults({
       </div>
 
       {/* Estado vazio */}
-      {filteredAndSortedFlights.length === 0 && (
+      {filteredAndSortedFlights.length === 0 && flights.length > 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
