@@ -72,7 +72,7 @@ async function handleFetchRequest(url: string, headers: RequestHeaders, method: 
 
         const data = await response.text();
         console.log('✅ Fetch concluído, tamanho:', data.length, 'caracteres');
-        console.log('✅ Resposta completa:', data);
+        //console.log('✅ Resposta completa:', data);
         /* if (data.length < 1000) {
             console.log('📦 Resposta completa:', data);
         } else {

@@ -131,10 +131,11 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     return flight.itinerary ? flight.itinerary.length - 1 : 0;
   };
 
-  // SELEÇÃO GARANTIDA DE VENDEDORES - CORRIGIDA
+  // SELEÇÃO GARANTIDA DE VENDEDORES - VERSÃO SIMPLES E ROBUSTA
   const flightSellers = useMemo((): Seller[] => {
     // Garante que sempre tenha pelo menos 1 vendedor
     if (!sellers || sellers.length === 0) {
+      console.warn("⚠️ Nenhum vendedor disponível");
       return [];
     }
 
@@ -142,7 +143,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     const maxSellers = 3;
 
     // Usa o ID do voo como seed para consistência
-    const flightId = flight.id || "default";
+    const flightId = flight.id || `flight-${Date.now()}`;
     const seed = flightId
       .split("")
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -150,13 +151,32 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     // Calcula quantos vendedores este voo terá (1-3)
     const sellerCount = minSellers + (seed % (maxSellers - minSellers + 1));
 
-    // Seleciona vendedores baseado no seed
-    const selectedSellers: Seller[] = [];
+    console.log(
+      `✈️ Voo ${flightId} terá ${sellerCount} vendedor(es) de ${sellers.length} disponíveis`
+    );
 
-    for (let i = 0; i < sellerCount; i++) {
-      const sellerIndex = (seed + i) % sellers.length;
-      selectedSellers.push(sellers[sellerIndex]);
+    // Seleciona vendedores aleatórios da lista disponível
+    const selectedSellers: Seller[] = [];
+    const availableSellers = [...sellers]; // Cria uma cópia para não modificar o original
+
+    for (let i = 0; i < sellerCount && availableSellers.length > 0; i++) {
+      // Usa o seed + i para seleção determinística mas variada
+      const randomIndex = (seed + i) % availableSellers.length;
+      selectedSellers.push(availableSellers[randomIndex]);
+
+      // Remove o seller selecionado para evitar duplicatas no mesmo voo
+      availableSellers.splice(randomIndex, 1);
     }
+
+    // Fallback absoluto - se ainda não tiver sellers, pega os primeiros
+    if (selectedSellers.length === 0 && sellers.length > 0) {
+      selectedSellers.push(sellers[0]);
+    }
+
+    console.log(
+      `✅ Voo ${flightId}: ${selectedSellers.length} vendedor(es) selecionado(s)`,
+      selectedSellers.map((s) => s.name)
+    );
 
     return selectedSellers;
   }, [flight.id, sellers]);
@@ -786,8 +806,20 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
               </p>
             </div>
 
+            {/* Fallback absoluto - se não houver sellers, usa os primeiros disponíveis */}
+            {flightSellers.length === 0 && sellers && sellers.length > 0 && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-700">
+                  ⚠️ Selecionando vendedores disponíveis...
+                </p>
+              </div>
+            )}
+
             <div className="space-y-4">
-              {flightSellers.map((seller, index) => (
+              {(flightSellers.length > 0
+                ? flightSellers
+                : sellers?.slice(0, 2) || []
+              ).map((seller, index) => (
                 <motion.div
                   key={`${seller.id}-${flight.id}-${index}`}
                   initial={{ opacity: 0, y: 10 }}

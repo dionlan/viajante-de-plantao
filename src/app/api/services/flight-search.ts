@@ -313,14 +313,39 @@ export class FlightSearchService {
         }
     }
 
-    // Novo método para gerar sellers mockados baseados no índice do voo
+    // NOVO método para gerar sellers mockados usando os sellers reais do mockData
     private static generateMockSellers(flightIndex: number): string[] {
-        const sellerCounts = [2, 1, 3, 2, 4, 1, 3, 2]; // Quantidade de sellers por voo
+        // Lista de IDs de sellers disponíveis do mockData
+        const availableSellerIds = [
+            "seller-0-0", "seller-0-1", "seller-1-0", "seller-2-0",
+            "seller-2-1", "seller-2-2", "seller-3-0", "seller-3-1",
+            "seller-4-0", "seller-4-1", "seller-4-2", "seller-4-3"
+        ];
 
-        const count = sellerCounts[flightIndex % sellerCounts.length] || 2;
-        return Array.from({ length: count }, (_, i) => `seller-${flightIndex}-${i}`);
+        // Define quantos sellers este voo terá (1-3)
+        const sellerCounts = [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3];
+        const count = sellerCounts[flightIndex % sellerCounts.length] || 1;
+
+        // Seleciona sellers baseado no índice do voo
+        const selectedSellers: string[] = [];
+
+        for (let i = 0; i < count && i < availableSellerIds.length; i++) {
+            const sellerIndex = (flightIndex + i) % availableSellerIds.length;
+            const sellerId = availableSellerIds[sellerIndex];
+
+            if (!selectedSellers.includes(sellerId)) {
+                selectedSellers.push(sellerId);
+            }
+        }
+
+        // Garante pelo menos 1 seller
+        if (selectedSellers.length === 0 && availableSellerIds.length > 0) {
+            selectedSellers.push(availableSellerIds[0]);
+        }
+
+        return selectedSellers;
     }
-
+    
     private static convertAirlineType(airline: string): 'LATAM' | 'GOL' | 'AZUL' {
         const upperAirline = airline.toUpperCase();
         if (upperAirline.includes('GOL')) return 'GOL';
