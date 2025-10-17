@@ -7,18 +7,15 @@ const nextConfig = {
   trailingSlash: true,
   compress: true,
   poweredByHeader: false,
-  // Desabilita otimizações problemáticas se necessário
   experimental: {
-    optimizeCss: false, // Desabilita se estiver causando problemas
+    optimizeCss: false, // Desabilita temporariamente
   },
-  // Configuração para evitar erros de prerendering
   typescript: {
-    ignoreBuildErrors: true, // Temporariamente para debug
+    ignoreBuildErrors: false, // Mude para false após correções
   },
   eslint: {
-    ignoreDuringBuilds: true, // Temporariamente para debug
+    ignoreDuringBuilds: false, // Mude para false após correções
   },
-  // Output standalone para melhor performance no Vercel
   output: 'standalone',
 }
 
