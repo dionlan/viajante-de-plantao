@@ -7,17 +7,18 @@ const nextConfig = {
   // Configurações de performance
   compress: true,
   poweredByHeader: false,
-  // Headers CORS para API
+  // Otimizações para build
+  experimental: {
+    optimizeCss: true,
+  },
+  // Headers para API
   async headers() {
     return [
       {
         source: "/api/:path*",
         headers: [
           { key: "Access-Control-Allow-Origin", value: "*" },
-          {
-            key: "Access-Control-Allow-Methods",
-            value: "GET, POST, PUT, DELETE, OPTIONS",
-          },
+          { key: "Access-Control-Allow-Methods", value: "GET,POST,OPTIONS" },
           {
             key: "Access-Control-Allow-Headers",
             value: "Content-Type, Authorization",
@@ -25,6 +26,12 @@ const nextConfig = {
         ],
       },
     ];
+  },
+  // Configuração para evitar warnings de runtime
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
   },
 };
 
