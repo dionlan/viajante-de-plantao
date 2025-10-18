@@ -4,21 +4,22 @@ const nextConfig = {
     domains: ['images.unsplash.com'],
     unoptimized: true
   },
-  // Remover headers desnecessários que conflitam com Vercel
-  experimental: {
-    serverExternalPackages: [],
-  },
-  // Configuração para otimização no Vercel
+  // Configurações de performance
   compress: true,
   poweredByHeader: false,
-  // Configuração de redirecionamentos se necessário
-  async redirects() {
-    return [];
+  // Headers CORS para API
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+        ],
+      },
+    ]
   },
-  // Configuração de rewrites se necessário
-  async rewrites() {
-    return [];
-  }
 }
 
 module.exports = nextConfig
