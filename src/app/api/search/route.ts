@@ -1,88 +1,168 @@
-// app/api/proxy/route.ts - PROXY UNIVERSAL
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge'; // Melhor performance no Vercel
+// Interface para os headers
+interface RequestHeaders {
+    [key: string]: string;
+}
 
-interface ProxyRequest {
+// Interface para o corpo da requisição
+interface RequestBody {
     url: string;
+    headers?: RequestHeaders;
     method?: string;
-    headers?: Record<string, string>;
-    body?: unknown;
-    timeout?: number;
+    useFetch?: boolean;
+    extractToken?: boolean;
+    command?: string;
 }
 
 export async function POST(request: NextRequest) {
     try {
-        const { url, method = 'GET', headers = {}, body, timeout = 8000 }: ProxyRequest = await request.json();
+        const body: RequestBody = await request.json();
+        const { url, headers = {}, method = 'GET', useFetch = false } = body;
 
-        // Validação de segurança
-        if (!url || !url.includes('latamairlines.com')) {
-            return NextResponse.json({
-                success: false,
-                error: 'URL não permitida'
-            }, { status: 400 });
-        }
+        console.log('🔍 Recebida requisição:', { url, method, useFetch });
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        try {
-            const fetchOptions: RequestInit = {
-                method,
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'Cache-Control': 'no-cache',
-                    ...headers
-                },
-                signal: controller.signal,
-            };
-
-            if (body && method !== 'GET') {
-                fetchOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
-            }
-
-            const response = await fetch(url, fetchOptions);
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                return NextResponse.json({
-                    success: false,
-                    error: `HTTP ${response.status}`,
-                    status: response.status
-                });
-            }
-
-            const data = await response.text();
-
-            return NextResponse.json({
-                success: true,
-                data: data,
-                status: response.status,
-                headers: Object.fromEntries(response.headers)
-            });
-
-        } catch (error: unknown) {
-            clearTimeout(timeoutId);
-            throw error;
+        if (useFetch) {
+            return await handleFetchRequest(url, headers, method);
+        } else {
+            return await handleCurlRequest(url, headers, method, body.extractToken || false, body.command);
         }
 
     } catch (error: unknown) {
-        console.error('Proxy error:', error);
+        console.error('❌ Erro na API search:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        return NextResponse.json(
+            {
+                success: false,
+                error: `Erro interno do servidor: ${errorMessage}`,
+                data: null
+            },
+            { status: 500 }
+        );
+    }
+}
 
-        const errInfo = ((): { name?: string; message: string } => {
-            if (error instanceof Error) return { name: error.name, message: error.message };
-            if (typeof error === 'object' && error !== null && 'message' in error) {
-                const e = error as { name?: string; message?: unknown };
-                return { name: e.name, message: typeof e.message === 'string' ? e.message : String(e.message) };
-            }
-            return { message: String(error) };
-        })();
+async function handleFetchRequest(url: string, headers: RequestHeaders, method: string) {
+    console.log('🔍 Executando fetch para:', url);
+    console.log('📋 Número de headers:', Object.keys(headers).length);
+
+    // Log dos headers (sem valores sensíveis)
+    const safeHeaders = { ...headers };
+    if (safeHeaders.Cookie) safeHeaders.Cookie = '[REDACTED]';
+    if (safeHeaders['x-latam-search-token']) safeHeaders['x-latam-search-token'] = safeHeaders['x-latam-search-token'].substring(0, 50) + '...';
+
+    console.log('📋 Headers seguros:', safeHeaders);
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: headers,
+        });
+
+        console.log('📊 Status da resposta:', response.status, response.statusText);
+
+        // Log dos headers de resposta
+        console.log('📋 Headers da resposta:', Object.fromEntries(response.headers.entries()));
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Corpo do erro:', errorText.substring(0, 500));
+            throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+        }
+
+        const data = await response.text();
+        console.log('✅ Fetch concluído, tamanho:', data.length, 'caracteres');
+        //console.log('✅ Resposta completa:', data);
+        /* if (data.length < 1000) {
+            console.log('📦 Resposta completa:', data);
+        } else {
+            console.log('📦 Primeiros 999 chars:', data.substring(0, 999));
+            console.log('📦 Últimos 999 chars:', data.substring(data.length - 999));
+        } */
 
         return NextResponse.json({
+            success: true,
+            data: data,
+            error: null
+        });
+    } catch (error: unknown) {
+        console.error('❌ Erro no fetch:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no fetch';
+        return NextResponse.json({
             success: false,
-            error: errInfo.name === 'AbortError' ? 'Timeout' : errInfo.message
-        }, { status: 502 });
+            error: errorMessage,
+            data: null
+        });
     }
+}
+
+async function handleCurlRequest(
+    url: string,
+    headers: RequestHeaders,
+    method: string,
+    extractToken: boolean = false,
+    command?: string
+) {
+    let finalCommand: string;
+
+    if (command) {
+        finalCommand = command;
+    } else {
+        const headersString = Object.entries(headers)
+            .map(([key, value]) => `-H "${key}: ${value}"`)
+            .join(' ');
+
+        finalCommand = `curl -s -X ${method} "${url}" ${headersString} --compressed --connect-timeout 30 --max-time 60`;
+    }
+
+    console.log('📋 Comando curl:', finalCommand);
+
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    const { stdout, stderr } = await execAsync(finalCommand);
+
+    if (stderr && !stderr.includes('Warning')) {
+        console.error('❌ Erro no curl:', stderr);
+        return NextResponse.json({
+            success: false,
+            error: `Erro no curl: ${stderr}`,
+            data: null
+        });
+    }
+
+    if (!stdout || stdout.trim().length === 0) {
+        console.error('❌ Resposta vazia do servidor');
+        return NextResponse.json({
+            success: false,
+            error: 'Resposta vazia do servidor',
+            data: null
+        });
+    }
+
+    console.log('✅ Curl concluído, tamanho:', stdout.length, 'caracteres');
+
+    let finalData = stdout;
+    if (extractToken) {
+        console.log('🔍 Extraindo token da resposta...');
+        const tokenMatch = stdout.match(/"searchToken":"([^"]*)"/);
+        if (tokenMatch && tokenMatch[1]) {
+            finalData = tokenMatch[1];
+            console.log('✅ Token extraído:', finalData.substring(0, 50) + '...');
+        } else {
+            console.error('❌ Token não encontrado na resposta');
+            return NextResponse.json({
+                success: false,
+                error: 'Token não encontrado na resposta',
+                data: null
+            });
+        }
+    }
+
+    return NextResponse.json({
+        success: true,
+        data: finalData,
+        error: null
+    });
 }
