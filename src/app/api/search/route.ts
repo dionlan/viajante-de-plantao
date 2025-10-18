@@ -1,129 +1,69 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { exec } from "child_process";
+import { promisify } from "util";
 
-interface RequestHeaders {
-    [key: string]: string;
-}
+const execAsync = promisify(exec);
 
-interface RequestBody {
-    url: string;
-    headers?: RequestHeaders;
-    method?: string;
-    extractToken?: boolean;
-}
+// 👇 força a rota a rodar em Node.js (não Edge Runtime)
+export const runtime = "nodejs";
 
-export async function POST(request: NextRequest) {
+// Tempo máximo de execução (em milissegundos)
+const DEFAULT_TIMEOUT = 45000; // 45 segundos
+
+export async function POST(request: Request) {
     try {
-        const body: RequestBody = await request.json();
-        const { url, headers = {}, method = 'GET', extractToken = false } = body;
+        const body = await request.json();
 
-        console.log('🔍 Recebida requisição proxy:', { url, method, extractToken });
+        console.log("📨 [API SEARCH] Requisição recebida:", JSON.stringify(body, null, 2));
 
-        // Validação da URL
-        if (!url || !url.startsWith('https://www.latamairlines.com')) {
-            return NextResponse.json({
-                success: false,
-                error: 'URL inválida ou não permitida',
-                data: null
-            }, { status: 400 });
+        const { url, method = "GET", headers = {}, body: reqBody, timeout = DEFAULT_TIMEOUT } = body;
+
+        if (!url) {
+            return Response.json({ success: false, error: "URL ausente no corpo da requisição" }, { status: 400 });
         }
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        // Monta o comando curl com escape seguro
+        const headerArgs = Object.entries(headers)
+            .map(([k, v]) => `-H "${k}: ${v}"`)
+            .join(" ");
 
+        const dataArg = reqBody ? `--data-raw '${reqBody}'` : "";
+
+        const curlCommand = `curl -s -X ${method} ${headerArgs} ${dataArg} --max-time ${timeout / 1000} "${url}"`;
+
+        console.log("🚀 [API SEARCH] Executando comando:", curlCommand);
+
+        const { stdout, stderr } = await execAsync(curlCommand, { maxBuffer: 1024 * 1024 * 10 }); // 10MB buffer
+
+        if (stderr) {
+            console.warn("⚠️ [API SEARCH] STDERR retornado:", stderr);
+        }
+
+        if (!stdout) {
+            console.error("❌ [API SEARCH] Nenhum output retornado pelo curl");
+            return Response.json({ success: false, error: "Nenhum output retornado pelo curl" }, { status: 500 });
+        }
+
+        // Tenta converter a saída em JSON (caso seja JSON válido)
+        let jsonResponse: any;
         try {
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    ...headers,
-                    // Headers padrão para evitar bloqueios
-                    'Accept': headers.accept || 'application/json, text/plain, */*',
-                    'Accept-Language': headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'User-Agent': headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                },
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            console.log('📊 Status da resposta:', response.status, response.statusText);
-
-            if (!response.ok) {
-                let errorText = '';
-                try {
-                    errorText = await response.text();
-                } catch {
-                    errorText = 'Não foi possível ler o corpo do erro';
-                }
-
-                console.error('❌ Erro na resposta:', response.status, errorText.substring(0, 500));
-
-                return NextResponse.json({
-                    success: false,
-                    error: `HTTP error! status: ${response.status}`,
-                    data: null
-                }, { status: response.status });
-            }
-
-            const responseText = await response.text();
-
-            let finalData = responseText;
-            if (extractToken) {
-                console.log('🔍 Extraindo token da resposta...');
-                const tokenMatch = responseText.match(/"searchToken":"([^"]*)"/);
-                if (tokenMatch && tokenMatch[1]) {
-                    finalData = tokenMatch[1];
-                    console.log('✅ Token extraído:', finalData.substring(0, 50) + '...');
-                } else {
-                    console.error('❌ Token não encontrado na resposta');
-                    return NextResponse.json({
-                        success: false,
-                        error: 'Token não encontrado na resposta',
-                        data: null
-                    });
-                }
-            }
-
-            console.log('✅ Proxy concluído, tamanho:', finalData.length, 'caracteres');
-
-            return NextResponse.json({
-                success: true,
-                data: finalData,
-                error: null
-            });
-
-        } catch (error: unknown) {
-            clearTimeout(timeoutId);
-
-            if (error instanceof Error && error.name === 'AbortError') {
-                console.error('❌ Timeout na requisição');
-                return NextResponse.json({
-                    success: false,
-                    error: 'Timeout na requisição',
-                    data: null
-                }, { status: 408 });
-            }
-
-            throw error;
+            jsonResponse = JSON.parse(stdout);
+            console.log("✅ [API SEARCH] JSON válido recebido");
+        } catch {
+            console.log("ℹ️ [API SEARCH] Resposta não é JSON — retornando texto puro");
         }
 
-    } catch (error: unknown) {
-        console.error('❌ Erro no proxy:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-
-        return NextResponse.json({
-            success: false,
-            error: `Erro interno do servidor: ${errorMessage}`,
-            data: null
-        }, { status: 500 });
+        return Response.json({
+            success: true,
+            data: jsonResponse || stdout,
+        });
+    } catch (error: any) {
+        console.error("🔥 [API SEARCH] Erro geral:", error.message);
+        return Response.json(
+            {
+                success: false,
+                error: error.message,
+            },
+            { status: 500 }
+        );
     }
-}
-
-export async function GET() {
-    return NextResponse.json({
-        success: false,
-        error: 'Método não permitido',
-        data: null
-    }, { status: 405 });
 }
