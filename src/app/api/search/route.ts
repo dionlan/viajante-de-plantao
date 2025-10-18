@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const requestId = Math.random().toString(36).substring(2, 15);
 
     try {
-        const { url, method = 'GET', headers = {}, body, timeout = 8000 }: ProxyRequest = await request.json();
+        const { url, method = 'GET', headers = {}, body, timeout = 18000 }: ProxyRequest = await request.json();
 
         // Validação de segurança reforçada
         if (!url || typeof url !== 'string') {
