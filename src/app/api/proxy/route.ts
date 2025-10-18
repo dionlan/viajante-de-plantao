@@ -1,37 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-// Para usar Puppeteer no Vercel, precisamos de uma solução serverless
+const execAsync = promisify(exec);
+
 export async function POST(request: NextRequest) {
+  // ⚠️ ATENÇÃO: Isso só funciona em ambientes que permitem execução de comandos
+  if (process.env.VERCEL) {
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Execução de comandos não permitida no Vercel' 
+    });
+  }
+
   try {
     const { searchParams } = await request.json();
     
-    // Em produção, use um serviço externo de Puppeteer
-    const puppeteerServiceUrl = process.env.PUPPETEER_SERVICE_URL;
+    const curlCommand = `curl -s -X GET "https://www.latamairlines.com/br/pt/oferta-voos?${new URLSearchParams(searchParams)}" -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" --compressed | grep -oP '"searchToken":"[^"]*"' | head -1`;
     
-    if (puppeteerServiceUrl) {
-      const response = await fetch(puppeteerServiceUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ searchParams })
-      });
-      
-      return NextResponse.json(await response.json());
-    }
-
-    // Fallback: tentar com fetch normal
-    const fallbackResponse = await fetch('/api/scraper', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ searchParams })
+    console.log('🔧 Executando comando:', curlCommand);
+    
+    const { stdout, stderr } = await execAsync(curlCommand, { 
+      timeout: 30000,
+      maxBuffer: 1024 * 1024 // 1MB
     });
 
-    return NextResponse.json(await fallbackResponse.json());
+    if (stderr) {
+      console.error('❌ Erro no comando:', stderr);
+    }
+
+    const tokenMatch = stdout.match(/"searchToken":"([^"]*)"/);
+    if (tokenMatch) {
+      return NextResponse.json({ 
+        success: true, 
+        token: tokenMatch[1].replace('"searchToken":"', '').replace('"', '')
+      });
+    }
+
+    throw new Error('Token não encontrado na saída do comando');
 
   } catch (error) {
-    console.error('❌ Erro no Puppeteer:', error);
+    console.error('❌ Erro na execução:', error);
     return NextResponse.json({ 
       success: false, 
-      error: 'Serviço de scraping indisponível' 
+      error: error instanceof Error ? error.message : 'Erro na execução do comando' 
     });
   }
 }
