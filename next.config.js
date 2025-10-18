@@ -1,24 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  images: {
-    domains: ['images.unsplash.com'],
-    unoptimized: true
-  },
-  // Remover headers desnecessários que conflitam com Vercel
   experimental: {
-    serverExternalPackages: [],
+    serverComponentsExternalPackages: [],
   },
-  // Configuração para otimização no Vercel
-  compress: true,
-  poweredByHeader: false,
-  // Configuração de redirecionamentos se necessário
-  async redirects() {
-    return [];
+  async headers() {
+    return [
+      {
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PUT, DELETE, OPTIONS",
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization",
+          },
+        ],
+      },
+    ];
   },
-  // Configuração de rewrites se necessário
-  async rewrites() {
-    return [];
-  }
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

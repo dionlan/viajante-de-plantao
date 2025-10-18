@@ -1,135 +1,129 @@
-// app/api/search/route.ts - VERSÃO GET SIMPLES
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-export const maxDuration = 30;
+interface RequestHeaders {
+    [key: string]: string;
+}
 
-export async function GET(request: NextRequest) {
-    const requestId = Math.random().toString(36).substring(2, 10);
+interface RequestBody {
+    url: string;
+    headers?: RequestHeaders;
+    method?: string;
+    extractToken?: boolean;
+}
 
-    console.log(`🔍 [${requestId}] Iniciando busca DIRETA via GET...`);
-
+export async function POST(request: NextRequest) {
     try {
-        const { searchParams } = new URL(request.url);
+        const body: RequestBody = await request.json();
+        const { url, headers = {}, method = 'GET', extractToken = false } = body;
 
-        // Parâmetros da busca
-        const origin = searchParams.get('origin') || 'BSB';
-        const destination = searchParams.get('destination') || 'GRU';
-        const outbound = searchParams.get('outbound') || '2025-11-17T15:00:00.000Z';
-        const inbound = searchParams.get('inbound') || '2025-11-21T15:00:00.000Z';
-        const adt = searchParams.get('adt') || '1';
-        const chd = searchParams.get('chd') || '0';
-        const inf = searchParams.get('inf') || '0';
-        const trip = searchParams.get('trip') || 'RT';
-        const cabin = searchParams.get('cabin') || 'Economy';
-        const redemption = searchParams.get('redemption') || 'false';
-        const sort = searchParams.get('sort') || 'RECOMMENDED';
-        const exp_id = searchParams.get('exp_id') || generateExpId();
+        console.log('🔍 Recebida requisição proxy:', { url, method, extractToken });
 
-        // Construir URL da LATAM
-        const latamUrl = `https://www.latamairlines.com/br/pt/oferta-voos?origin=${origin}&outbound=${outbound}&destination=${destination}&adt=${adt}&chd=${chd}&inf=${inf}&trip=${trip}&cabin=${cabin}&redemption=${redemption}&sort=${sort}&inbound=${inbound}&exp_id=${exp_id}`;
-
-        console.log(`🌐 [${requestId}] URL LATAM: ${latamUrl}`);
-
-        // Headers otimizados para LATAM
-        const headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Cache-Control': 'no-cache',
-            'DNT': '1',
-            'Upgrade-Insecure-Requests': '1'
-        };
+        // Validação da URL
+        if (!url || !url.startsWith('https://www.latamairlines.com')) {
+            return NextResponse.json({
+                success: false,
+                error: 'URL inválida ou não permitida',
+                data: null
+            }, { status: 400 });
+        }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
         try {
-            const startTime = Date.now();
-            const response = await fetch(latamUrl, {
-                method: 'GET',
-                headers: headers,
-                signal: controller.signal,
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    ...headers,
+                    // Headers padrão para evitar bloqueios
+                    'Accept': headers.accept || 'application/json, text/plain, */*',
+                    'Accept-Language': headers['accept-language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'User-Agent': headers['user-agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                },
+                signal: controller.signal
             });
 
-            const endTime = Date.now();
             clearTimeout(timeoutId);
 
-            console.log(`📊 [${requestId}] Response em ${endTime - startTime}ms - Status: ${response.status}`);
+            console.log('📊 Status da resposta:', response.status, response.statusText);
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                let errorText = '';
+                try {
+                    errorText = await response.text();
+                } catch {
+                    errorText = 'Não foi possível ler o corpo do erro';
+                }
+
+                console.error('❌ Erro na resposta:', response.status, errorText.substring(0, 500));
+
+                return NextResponse.json({
+                    success: false,
+                    error: `HTTP error! status: ${response.status}`,
+                    data: null
+                }, { status: response.status });
             }
 
-            const html = await response.text();
+            const responseText = await response.text();
 
-            if (!html) {
-                throw new Error('Resposta vazia da LATAM');
+            let finalData = responseText;
+            if (extractToken) {
+                console.log('🔍 Extraindo token da resposta...');
+                const tokenMatch = responseText.match(/"searchToken":"([^"]*)"/);
+                if (tokenMatch && tokenMatch[1]) {
+                    finalData = tokenMatch[1];
+                    console.log('✅ Token extraído:', finalData.substring(0, 50) + '...');
+                } else {
+                    console.error('❌ Token não encontrado na resposta');
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Token não encontrado na resposta',
+                        data: null
+                    });
+                }
             }
 
-            console.log(`✅ [${requestId}] HTML recebido: ${html.length} caracteres`);
+            console.log('✅ Proxy concluído, tamanho:', finalData.length, 'caracteres');
 
-            // Extrair token
-            const tokenMatch = html.match(/"searchToken":"([^"]*)"/);
-            if (tokenMatch && tokenMatch[1]) {
-                const token = tokenMatch[1];
-                console.log(`🔑 [${requestId}] Token encontrado: ${token.substring(0, 50)}...`);
+            return NextResponse.json({
+                success: true,
+                data: finalData,
+                error: null
+            });
 
-                // Retornar APENAS o token como texto puro
-                return new Response(token, {
-                    status: 200,
-                    headers: {
-                        'Content-Type': 'text/plain',
-                        'Access-Control-Allow-Origin': '*',
-                        'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                    },
-                });
-            } else {
-                throw new Error('Token não encontrado na resposta');
-            }
-
-        } catch (error: any) {
+        } catch (error: unknown) {
             clearTimeout(timeoutId);
 
-            if (error.name === 'AbortError') {
-                throw new Error('Timeout: Requisição excedeu 15 segundos');
+            if (error instanceof Error && error.name === 'AbortError') {
+                console.error('❌ Timeout na requisição');
+                return NextResponse.json({
+                    success: false,
+                    error: 'Timeout na requisição',
+                    data: null
+                }, { status: 408 });
             }
 
             throw error;
         }
 
-    } catch (error: any) {
-        console.error(`💥 [${requestId}] Erro:`, error.message);
+    } catch (error: unknown) {
+        console.error('❌ Erro no proxy:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
 
-        return new Response(`ERROR: ${error.message}`, {
-            status: 500,
-            headers: {
-                'Content-Type': 'text/plain',
-                'Access-Control-Allow-Origin': '*',
-            },
-        });
+        return NextResponse.json({
+            success: false,
+            error: `Erro interno do servidor: ${errorMessage}`,
+            data: null
+        }, { status: 500 });
     }
 }
 
-// Gerar exp_id aleatório
-function generateExpId(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
-// Handler para OPTIONS (CORS)
-export async function OPTIONS() {
-    return new Response(null, {
-        status: 200,
-        headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
-        },
-    });
+export async function GET() {
+    return NextResponse.json({
+        success: false,
+        error: 'Método não permitido',
+        data: null
+    }, { status: 405 });
 }

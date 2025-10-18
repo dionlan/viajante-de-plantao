@@ -1,30 +1,18 @@
 import { FlightSearch, TokenData, LatamApiResponse, Flight, LatamFlightOffer } from '@/lib/types';
 import { TokenManager, UrlBuilder } from '@/lib/api-utils';
 
-// Interface para headers
 interface RequestHeaders {
     [key: string]: string;
 }
 
 export class FlightSearchService {
-    private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
+    private static readonly USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-    /**
-     * Obtém o token de busca via PROXY (evita CORS)
-     */
     static async getUrlSearchToken(searchParams: FlightSearch): Promise<string> {
-        console.log('🔄 Obtendo novo searchToken via PROXY...');
+        console.log('🔄 Obtendo novo searchToken...');
 
-        try {
-            UrlBuilder.validateSearchParams(searchParams);
-        } catch (error) {
-            console.error('❌ Parâmetros inválidos:', error);
-            throw error;
-        }
-
-        // Constrói URL para LATAM
-        const latamUrl = this.buildDirectLatamUrl(searchParams);
-        console.log('🔗 URL LATAM (via proxy):', latamUrl);
+        const searchUrl = UrlBuilder.buildSearchUrl(searchParams);
+        console.log('🔗 URL de busca para token:', searchUrl);
 
         const headers: RequestHeaders = {
             'User-Agent': this.USER_AGENT,
@@ -32,271 +20,137 @@ export class FlightSearchService {
             'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'Accept-Encoding': 'gzip, deflate, br',
             'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
         };
 
-        try {
-            // Usa proxy para evitar CORS
-            const html = await this.makeApiRequest(latamUrl, {
+        const response = await fetch('/api/proxy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: searchUrl,
                 method: 'GET',
                 headers: headers,
-                timeout: 15000,
-            });
-
-            console.log('✅ HTML recebido via proxy:', typeof html === 'string' ? html.length : 'unknown', 'caracteres');
-
-            // Extrai o token
-            const tokenMatch = typeof html === 'string' ? html.match(/"searchToken":"([^"]*)"/) : null;
-            if (tokenMatch && tokenMatch[1]) {
-                const token = tokenMatch[1];
-                console.log('✅ SearchToken obtido:', token.substring(0, 50) + '...');
-
-                TokenManager.setToken(token);
-                return token;
-            } else {
-                // Tentativa com padrão alternativo
-                const alternativeToken = typeof html === 'string' ? this.extractSearchTokenAlternative(html) : null;
-                if (alternativeToken) {
-                    console.log('✅ SearchToken obtido (padrão alternativo):', alternativeToken.substring(0, 50) + '...');
-                    TokenManager.setToken(alternativeToken);
-                    return alternativeToken;
-                }
-                throw new Error('Token não encontrado na resposta');
-            }
-
-        } catch (error) {
-            console.error('❌ Erro ao obter token:', error);
-            throw new Error(`Falha ao obter token: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-        }
-    }
-
-    /**
-     * Constrói URL para LATAM
-     */
-    private static buildDirectLatamUrl(searchParams: FlightSearch): string {
-        const baseUrl = 'https://www.latamairlines.com/br/pt/oferta-voos';
-
-        // Extrai códigos dos aeroportos
-        const extractCode = (location: string): string => {
-            if (!location) return '';
-            const match = location.match(/\(([A-Z]{3})\)/);
-            return match ? match[1] : (/^[A-Z]{3}$/.test(location) ? location : location.slice(-3).toUpperCase());
-        };
-
-        const params = new URLSearchParams();
-        params.set('origin', extractCode(searchParams.origin));
-        params.set('outbound', `${searchParams.departureDate}T15:00:00.000Z`);
-        params.set('destination', extractCode(searchParams.destination));
-        params.set('adt', searchParams.passengerDetails.adults.toString());
-        params.set('chd', searchParams.passengerDetails.children.toString());
-        params.set('inf', searchParams.passengerDetails.babies.toString());
-        params.set('trip', searchParams.tripType === 'roundtrip' ? 'RT' : 'OW');
-        params.set('cabin', 'Economy');
-        params.set('redemption', 'false');
-        params.set('sort', 'RECOMMENDED');
-
-        if (searchParams.tripType === 'roundtrip' && searchParams.returnDate) {
-            params.set('inbound', `${searchParams.returnDate}T15:00:00.000Z`);
-        }
-
-        // Adiciona exp_id
-        params.set('exp_id', this.generateUUID());
-
-        return `${baseUrl}?${params.toString()}`;
-    }
-
-    /**
-     * Busca voos com os parâmetros fornecidos
-     */
-    static async searchFlights(searchParams: FlightSearch): Promise<Flight[]> {
-        console.log('✈️ Iniciando busca de voos...', {
-            origin: searchParams.origin,
-            destination: searchParams.destination,
-            departureDate: searchParams.departureDate,
-            tripType: searchParams.tripType
+                extractToken: true
+            }),
         });
 
-        try {
-            UrlBuilder.validateSearchParams(searchParams);
-        } catch (error) {
-            console.error('❌ Parâmetros inválidos:', error);
-            throw error;
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Erro na requisição do token:', response.status, errorText);
+            throw new Error(`Erro na requisição: ${response.status} - ${errorText}`);
         }
 
-        let tokenData = TokenManager.getToken();
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Erro desconhecido na requisição');
+        }
+
+        const token = result.data;
+        console.log('✅ SearchToken obtido:', token.substring(0, 50) + '...');
+
+        TokenManager.setToken(token);
+        return token;
+    }
+
+    static async searchFlights(searchParams: FlightSearch): Promise<Flight[]> {
+        console.log('✈️ Iniciando busca de voos...', searchParams);
 
         // Sempre obtém novo token para garantir frescor
-        console.log('🔄 Obtendo novo token...');
         await this.getUrlSearchToken(searchParams);
-        tokenData = TokenManager.getToken();
+        const tokenData = TokenManager.getToken();
 
         if (!tokenData) {
             throw new Error('Não foi possível obter o token de busca');
         }
 
-        return await this.getFlightApiOffers(searchParams, tokenData.searchToken);
+        return await this.getFlightApiOffersWithFetch(searchParams, tokenData.searchToken);
     }
 
-    /**
-     * Busca ofertas de voos usando a API da LATAM
-     */
-    private static async getFlightApiOffers(searchParams: FlightSearch, searchToken: string): Promise<Flight[]> {
-        console.log('🔍 Buscando ofertas com token...');
+    private static async getFlightApiOffersWithFetch(searchParams: FlightSearch, searchToken: string): Promise<Flight[]> {
+        console.log('🔍 Buscando ofertas com fetch...');
 
         const offersUrl = UrlBuilder.buildApiOffersUrl(searchParams);
         const expId = this.generateUUID();
-        const refererUrl = this.buildDirectLatamUrl(searchParams);
+        const refererUrl = UrlBuilder.getRefererUrl(searchParams, expId);
 
         console.log('🔗 URL de ofertas:', offersUrl);
 
-        // Headers otimizados para API LATAM
+        const sessionId = this.generateUUID();
+        const requestId = this.generateUUID();
+        const trackId = this.generateUUID();
+
         const headers: RequestHeaders = {
             'accept': 'application/json, text/plain, */*',
             'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
             'priority': 'u=1, i',
-            'referer': refererUrl,
+            'referer': `${refererUrl}&exp_id=${expId}`,
             'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
             'sec-ch-ua-mobile': '?0',
             'sec-ch-ua-platform': '"Windows"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-origin',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'user-agent': this.USER_AGENT,
             'x-latam-action-name': 'search-result.flightselection.offers-search',
-            'x-latam-app-session-id': this.generateUUID(),
+            'x-latam-app-session-id': sessionId,
             'x-latam-application-country': 'BR',
             'x-latam-application-lang': 'pt',
             'x-latam-application-name': 'web-air-offers',
             'x-latam-application-oc': 'br',
             'x-latam-client-name': 'web-air-offers',
-            'x-latam-device-width': '1920',
-            'x-latam-request-id': this.generateUUID(),
+            'x-latam-device-width': '1746',
+            'x-latam-request-id': requestId,
             'x-latam-search-token': searchToken,
-            'x-latam-track-id': this.generateUUID(),
-            'Cookie': this.generateCookies()
+            'x-latam-track-id': trackId,
+            'Cache-Control': 'no-cache'
         };
 
-        console.log('📋 Headers configurados para ofertas');
+        console.log('📋 Headers configurados:', Object.keys(headers).length, 'headers');
 
-        try {
-            // Usa proxy para as ofertas também
-            const data = await this.makeApiRequest(offersUrl, {
+        const response = await fetch('/api/proxy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: offersUrl,
                 method: 'GET',
-                headers: headers,
-                timeout: 20000,
-            });
+                headers: headers
+            }),
+        });
 
-            console.log('✅ Busca de ofertas concluída com sucesso');
-            return this.parseOffersResponse(data);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Erro na busca de ofertas:', response.status, errorText);
 
-        } catch (error) {
-            console.error('❌ Erro na busca de ofertas:', error);
-
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            if (this.isAuthError(errorMessage)) {
+            if (response.status === 400 || response.status === 403) {
                 console.log('🔄 Possível problema com token, tentando renovar...');
                 TokenManager.clearToken();
                 return this.searchFlights(searchParams);
             }
 
-            throw new Error(`Erro na busca de ofertas: ${errorMessage}`);
+            throw new Error(`Erro na busca de ofertas: ${response.status} - ${errorText}`);
         }
-    }
 
-    /**
-     * Faz requisições API através do proxy (resolve CORS)
-     */
-    private static async makeApiRequest(url: string, options: {
-        method?: string;
-        headers?: Record<string, string>;
-        body?: any;
-        timeout?: number;
-    } = {}): Promise<any> {
+        const result = await response.json();
 
-        const payload = {
-            url,
-            method: options.method || 'GET',
-            headers: options.headers || {},
-            body: options.body,
-            timeout: options.timeout || 15000
-        };
+        if (!result.success) {
+            console.error('❌ Erro na resposta da API:', result.error);
 
-        try {
-            const response = await fetch('/api/proxy', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Proxy error: ${response.status} ${response.statusText}`);
+            if (result.error?.includes('token') || result.error?.includes('auth') || result.error?.includes('400')) {
+                console.log('🔄 Possível problema com token, tentando renovar...');
+                TokenManager.clearToken();
+                return this.searchFlights(searchParams);
             }
 
-            const result = await response.json();
-
-            if (!result.success) {
-                throw new Error(result.error || 'Request failed');
-            }
-
-            return result.data;
-
-        } catch (error) {
-            console.error('❌ Erro na requisição via proxy:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Extração alternativa de token
-     */
-    private static extractSearchTokenAlternative(html: string): string | null {
-        const patterns = [
-            /searchToken["']?\s*:\s*["']([^"']+)["']/,
-            /window\.searchToken\s*=\s*["']([^"']+)["']/,
-            /name="searchToken"\s+value="([^"]*)"/,
-            /data-search-token=["']([^"']+)["']/,
-        ];
-
-        for (const pattern of patterns) {
-            const match = html.match(pattern);
-            if (match && match[1] && match[1].length > 10) {
-                return match[1];
-            }
+            throw new Error(result.error || 'Erro na busca de ofertas');
         }
 
-        return null;
-    }
-
-    /**
-     * Verifica se é erro de autenticação
-     */
-    private static isAuthError(errorMessage: string): boolean {
-        return errorMessage.includes('token') ||
-            errorMessage.includes('auth') ||
-            errorMessage.includes('401') ||
-            errorMessage.includes('403') ||
-            errorMessage.includes('400');
-    }
-
-    // ... (MÉTODOS AUXILIARES - mantém os mesmos)
-
-    private static generateCookies(): string {
-        const abck = this.generateRandomString(500);
-        const xpExpId = this.generateUUID();
-        const bmSz = this.generateRandomString(100);
-        const xpSession = `s%3A${this.generateRandomString(50)}.${this.generateRandomString(100)}`;
-
-        return `_abck=${abck}; _xp_exp_id=${xpExpId}; bm_sz=${bmSz}; _xp_session=${xpSession}`;
-    }
-
-    private static generateRandomString(length: number): string {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~-';
-        let result = '';
-        for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return result;
+        console.log('✅ Busca concluída com sucesso');
+        return this.parseOffersResponse(result.data);
     }
 
     private static generateUUID(): string {
@@ -307,9 +161,9 @@ export class FlightSearchService {
         });
     }
 
-    private static parseOffersResponse(data: any): Flight[] {
+    private static parseOffersResponse(data: string): Flight[] {
         try {
-            const parsedData: LatamApiResponse = typeof data === 'string' ? JSON.parse(data) : data;
+            const parsedData: LatamApiResponse = JSON.parse(data);
 
             console.log('📊 Resposta da API LATAM:', {
                 hasContent: !!parsedData.content,
@@ -319,68 +173,65 @@ export class FlightSearchService {
             });
 
             if (parsedData.content && Array.isArray(parsedData.content)) {
-                const flights = parsedData.content
-                    .map((offer: LatamFlightOffer, index: number) => this.transformToFlight(offer, index))
-                    .filter((flight): flight is Flight => flight !== null);
-
+                const flights = parsedData.content.map((offer: LatamFlightOffer, index: number) =>
+                    this.transformToFlight(offer, index)
+                );
                 console.log(`✅ ${flights.length} voos transformados de content`);
                 return flights;
             }
 
-            console.warn('⚠️ Estrutura de resposta não reconhecida ou conteúdo vazio');
+            console.warn('⚠️ Estrutura de resposta não reconhecida');
             return [];
 
         } catch (error) {
             console.error('❌ Erro ao parsear resposta:', error);
+            console.error('📦 Dados que causaram erro:', data.substring(0, 500));
             return [];
         }
     }
 
-    private static transformToFlight(offer: LatamFlightOffer, index: number): Flight | null {
-        try {
-            const summary = offer.summary;
+    private static transformToFlight(offer: LatamFlightOffer, index: number): Flight {
+        const summary = offer.summary;
 
-            if (!summary || !summary.origin || !summary.destination) {
-                console.warn(`⚠️ Oferta ${index} com estrutura inválida`);
-                return null;
-            }
+        const milesPrice = summary.brands?.[0]?.price?.amount ?? 0;
+        const cashPrice = (summary.brands?.[0]?.priceWithOutTax?.amount ?? 0) + (summary.brands?.[0]?.taxes?.amount ?? 0);
+        const stopOvers = offer.summary.stopOvers || 0;
+        const totalDurationFormatted = this.formatDuration(summary.duration);
 
-            const milesPrice = summary.brands?.[0]?.price?.amount ?? 0;
-            const cashPrice = (summary.brands?.[0]?.priceWithOutTax?.amount ?? 0) +
-                (summary.brands?.[0]?.taxes?.amount ?? 0);
+        const departureTime = summary.origin.departureTime ||
+            this.extractTime(summary.origin.departure || '');
+        const arrivalTime = summary.destination.arrivalTime ||
+            this.extractTime(summary.destination.arrival || '');
 
-            const flight: Flight = {
-                id: `flight-${index}-${Date.now()}`,
-                airline: this.convertAirlineType(summary.airline || 'LATAM'),
-                stopOvers: summary.stopOvers || 0,
-                flightNumber: summary.flightCode || `LA${index}`,
-                origin: summary.origin.iataCode || '',
-                originCity: summary.origin.city || '',
-                destination: summary.destination.iataCode || '',
-                destinationCity: summary.destination.city || '',
-                departure: summary.origin.departure || '',
-                arrival: summary.destination.arrival || '',
-                departureTime: summary.origin.departureTime || this.extractTime(summary.origin.departure || ''),
-                arrivalTime: summary.destination.arrivalTime || this.extractTime(summary.destination.arrival || ''),
-                duration: this.formatDuration(summary.duration),
-                durationMinutes: summary.duration || 0,
-                class: offer.brands?.[0]?.cabin?.label || 'Econômica',
-                milesPrice,
-                cashPrice,
-                program: 'latam',
-                sellers: this.generateMockSellers(index),
-                summary: summary,
-                itinerary: offer.itinerary,
-                brands: offer.brands,
-                totalDurationFormatted: this.formatDuration(summary.duration)
-            };
+        const flightClass = offer.brands?.[0]?.cabin?.label || 'Econômica';
+        const airline = this.convertAirlineType(summary.airline || 'LATAM');
+        const sellers = this.generateMockSellers(index);
 
-            return flight;
-
-        } catch (error) {
-            console.error(`❌ Erro ao transformar oferta ${index}:`, error);
-            return null;
-        }
+        return {
+            id: `flight-${index}-${Date.now()}`,
+            airline,
+            stopOvers,
+            flightNumber: summary.flightCode,
+            origin: summary.origin.iataCode,
+            originCity: summary.origin.city,
+            destination: summary.destination.iataCode,
+            destinationCity: summary.destination.city,
+            departure: summary.origin.departure || '',
+            arrival: summary.destination.arrival || '',
+            departureTime,
+            arrivalTime,
+            duration: totalDurationFormatted,
+            durationMinutes: summary.duration,
+            class: flightClass,
+            milesPrice,
+            cashPrice,
+            program: 'latam',
+            sellers,
+            summary: summary,
+            itinerary: offer.itinerary,
+            brands: offer.brands,
+            totalDurationFormatted
+        };
     }
 
     private static extractTime(dateTimeString: string): string {
@@ -441,13 +292,5 @@ export class FlightSearchService {
         if (upperAirline.includes('GOL')) return 'GOL';
         if (upperAirline.includes('AZUL')) return 'AZUL';
         return 'LATAM';
-    }
-
-    /**
-     * Limpa cache
-     */
-    static clearCache(): void {
-        TokenManager.clearToken();
-        console.log('🗑️ Cache limpo com sucesso');
     }
 }
