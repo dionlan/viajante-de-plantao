@@ -1,112 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// ⚙️ Força o uso de Node.js runtime
-export const runtime = 'nodejs';
-
-// Permite tempo maior de execução
-export const maxDuration = 60;
-
-interface RequestHeaders {
-    [key: string]: string;
-}
-
-interface RequestBody {
-    url: string;
-    headers?: RequestHeaders;
-    method?: string;
-    extractToken?: boolean;
-    body?: unknown;
-    timeout?: number;
-}
-
 export async function POST(request: NextRequest) {
     try {
-        const body: RequestBody = await request.json();
-        const { url, headers = {}, method = 'GET', body: reqBody, extractToken = false, timeout = 30000 } = body;
+        const { searchParams } = await request.json();
 
-        console.log('🔍 Recebida requisição proxy:', { url, method, extractToken });
+        // Gera headers realistas
+        const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Upgrade-Insecure-Requests': '1',
+        };
 
-        // 🛡️ Validação da URL
-        if (!url || !url.startsWith('https://www.latamairlines.com')) {
-            return NextResponse.json(
-                { success: false, error: 'URL inválida ou não permitida', data: null },
-                { status: 400 }
-            );
-        }
+        const url = `https://www.latamairlines.com/br/pt/oferta-voos?${new URLSearchParams(searchParams)}`;
 
-        // ⏱️ Timeout manual com AbortController
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        console.log('🔗 Fazendo requisição para:', url);
 
-        let response: Response;
-
-        try {
-            response = await fetch(url, {
-                method,
-                headers: {
-                    ...headers,
-                    'Accept': headers['Accept'] || 'application/json, text/plain, */*',
-                    'Accept-Language': headers['Accept-Language'] || 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-                    'User-Agent': headers['User-Agent'] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache',
-                },
-                body: method !== 'GET' && reqBody ? JSON.stringify(reqBody) : undefined,
-                signal: controller.signal,
-            });
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error instanceof Error && error.name === 'AbortError') {
-                console.error('❌ Timeout na requisição');
-                return NextResponse.json(
-                    { success: false, error: 'Timeout na requisição', data: null },
-                    { status: 408 }
-                );
-            }
-            throw error;
-        }
-
-        clearTimeout(timeoutId);
-
-        console.log('📊 Status da resposta:', response.status, response.statusText);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: headers,
+            // Configurações importantes para contornar bloqueios
+            cache: 'no-store',
+            redirect: 'follow'
+        });
 
         if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Erro ao ler corpo de erro');
-            console.error('❌ Erro da LATAM:', response.status, errorText.slice(0, 300));
-            return NextResponse.json(
-                { success: false, error: `Erro HTTP ${response.status}`, data: null },
-                { status: response.status }
-            );
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const responseText = await response.text();
-        console.log('📦 Tamanho da resposta:', responseText.length, 'bytes');
+        const html = await response.text();
 
-        // 🔍 Extração opcional do token
-        if (extractToken) {
-            const tokenMatch = responseText.match(/"searchToken":"([^"]+)"/);
-            if (tokenMatch) {
-                console.log('✅ Token extraído com sucesso');
-                return NextResponse.json({ success: true, data: tokenMatch[1], error: null });
+        // Múltiplos padrões para encontrar o token
+        const tokenPatterns = [
+            /"searchToken":"([^"]*)"/,
+            /searchToken["']?\s*:\s*["']([^"']+)["']/,
+            /window\.searchToken\s*=\s*["']([^"']+)["']/,
+            /data-search-token=["']([^"']+)["']/
+        ];
+
+        let token = null;
+        for (const pattern of tokenPatterns) {
+            const match = html.match(pattern);
+            if (match && match[1]) {
+                token = match[1];
+                break;
             }
-            console.error('❌ Token não encontrado na resposta');
-            return NextResponse.json({ success: false, error: 'Token não encontrado', data: null });
         }
 
-        return NextResponse.json({ success: true, data: responseText, error: null });
-    } catch (err) {
-        console.error('💥 Erro interno do proxy:', err);
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
-        return NextResponse.json(
-            { success: false, error: `Erro interno do servidor: ${message}`, data: null },
-            { status: 500 }
-        );
-    }
-}
+        if (!token) {
+            console.log('🔍 Token não encontrado. Amostra do HTML:', html.substring(0, 1000));
+            return NextResponse.json({
+                success: false,
+                error: 'Token não encontrado na resposta',
+                debug: { htmlLength: html.length }
+            });
+        }
 
-export async function GET() {
-    return NextResponse.json(
-        { success: false, error: 'Método não permitido', data: null },
-        { status: 405 }
-    );
+        return NextResponse.json({ success: true, token });
+
+    } catch (error) {
+        console.error('❌ Erro no scraper:', error);
+        return NextResponse.json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+    }
 }
