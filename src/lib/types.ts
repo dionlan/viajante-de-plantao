@@ -170,6 +170,7 @@ export interface MileTransaction {
 }
 
 export interface TokenData {
+    [x: string]: string | number;
     searchToken: string;
     exp: number;
 }
