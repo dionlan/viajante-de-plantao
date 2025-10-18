@@ -10,10 +10,10 @@ export class FlightSearchService {
     private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
 
     /**
-     * Obtém o token de busca DIRETAMENTE da LATAM
+     * Obtém o token de busca via PROXY (evita CORS)
      */
     static async getUrlSearchToken(searchParams: FlightSearch): Promise<string> {
-        console.log('🔄 Obtendo novo searchToken DIRETO da LATAM...');
+        console.log('🔄 Obtendo novo searchToken via PROXY...');
 
         try {
             UrlBuilder.validateSearchParams(searchParams);
@@ -22,9 +22,9 @@ export class FlightSearchService {
             throw error;
         }
 
-        // Constrói URL DIRETA para LATAM (igual seu exemplo curl)
+        // Constrói URL para LATAM
         const latamUrl = this.buildDirectLatamUrl(searchParams);
-        console.log('🔗 URL DIRETA para LATAM:', latamUrl);
+        console.log('🔗 URL LATAM (via proxy):', latamUrl);
 
         const headers: RequestHeaders = {
             'User-Agent': this.USER_AGENT,
@@ -35,59 +35,42 @@ export class FlightSearchService {
         };
 
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-            const response = await fetch(latamUrl, {
+            // Usa proxy para evitar CORS
+            const html = await this.makeApiRequest(latamUrl, {
                 method: 'GET',
                 headers: headers,
-                signal: controller.signal,
-                // Importante para funcionar no browser
-                mode: 'cors',
-                credentials: 'omit'
+                timeout: 15000,
             });
 
-            clearTimeout(timeoutId);
+            console.log('✅ HTML recebido via proxy:', typeof html === 'string' ? html.length : 'unknown', 'caracteres');
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const html = await response.text();
-
-            if (!html) {
-                throw new Error('Resposta vazia da LATAM');
-            }
-
-            console.log('✅ HTML recebido da LATAM:', html.length, 'caracteres');
-
-            // Extrai o token (igual seu grep)
-            const tokenMatch = html.match(/"searchToken":"([^"]*)"/);
+            // Extrai o token
+            const tokenMatch = typeof html === 'string' ? html.match(/"searchToken":"([^"]*)"/) : null;
             if (tokenMatch && tokenMatch[1]) {
                 const token = tokenMatch[1];
-                console.log('✅ SearchToken obtido DIRETAMENTE:', token.substring(0, 50) + '...');
+                console.log('✅ SearchToken obtido:', token.substring(0, 50) + '...');
 
                 TokenManager.setToken(token);
                 return token;
             } else {
                 // Tentativa com padrão alternativo
-                const alternativeToken = this.extractSearchTokenAlternative(html);
+                const alternativeToken = typeof html === 'string' ? this.extractSearchTokenAlternative(html) : null;
                 if (alternativeToken) {
                     console.log('✅ SearchToken obtido (padrão alternativo):', alternativeToken.substring(0, 50) + '...');
                     TokenManager.setToken(alternativeToken);
                     return alternativeToken;
                 }
-                throw new Error('Token não encontrado na resposta da LATAM');
+                throw new Error('Token não encontrado na resposta');
             }
 
         } catch (error) {
-            console.error('❌ Erro ao obter token DIRETO:', error);
+            console.error('❌ Erro ao obter token:', error);
             throw new Error(`Falha ao obter token: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
         }
     }
 
     /**
-     * Constrói URL DIRETA para LATAM (igual seu exemplo curl)
+     * Constrói URL para LATAM
      */
     private static buildDirectLatamUrl(searchParams: FlightSearch): string {
         const baseUrl = 'https://www.latamairlines.com/br/pt/oferta-voos';
@@ -115,7 +98,7 @@ export class FlightSearchService {
             params.set('inbound', `${searchParams.returnDate}T15:00:00.000Z`);
         }
 
-        // Adiciona exp_id (igual seu exemplo)
+        // Adiciona exp_id
         params.set('exp_id', this.generateUUID());
 
         return `${baseUrl}?${params.toString()}`;
@@ -142,7 +125,7 @@ export class FlightSearchService {
         let tokenData = TokenManager.getToken();
 
         // Sempre obtém novo token para garantir frescor
-        console.log('🔄 Obtendo novo token DIRETO...');
+        console.log('🔄 Obtendo novo token...');
         await this.getUrlSearchToken(searchParams);
         tokenData = TokenManager.getToken();
 
@@ -154,14 +137,14 @@ export class FlightSearchService {
     }
 
     /**
-     * Busca ofertas de voos usando a API da LATAM (via proxy para evitar CORS)
+     * Busca ofertas de voos usando a API da LATAM
      */
     private static async getFlightApiOffers(searchParams: FlightSearch, searchToken: string): Promise<Flight[]> {
         console.log('🔍 Buscando ofertas com token...');
 
         const offersUrl = UrlBuilder.buildApiOffersUrl(searchParams);
         const expId = this.generateUUID();
-        const refererUrl = this.buildDirectLatamUrl(searchParams); // URL direta como referer
+        const refererUrl = this.buildDirectLatamUrl(searchParams);
 
         console.log('🔗 URL de ofertas:', offersUrl);
 
@@ -195,7 +178,7 @@ export class FlightSearchService {
         console.log('📋 Headers configurados para ofertas');
 
         try {
-            // Para ofertas, usa proxy (evita problemas de CORS com a API)
+            // Usa proxy para as ofertas também
             const data = await this.makeApiRequest(offersUrl, {
                 method: 'GET',
                 headers: headers,
@@ -220,7 +203,7 @@ export class FlightSearchService {
     }
 
     /**
-     * Faz requisições API através do proxy (apenas para ofertas)
+     * Faz requisições API através do proxy (resolve CORS)
      */
     private static async makeApiRequest(url: string, options: {
         method?: string;
@@ -296,7 +279,7 @@ export class FlightSearchService {
             errorMessage.includes('400');
     }
 
-    // ... (MÉTODOS AUXILIARES - mantém os existentes)
+    // ... (MÉTODOS AUXILIARES - mantém os mesmos)
 
     private static generateCookies(): string {
         const abck = this.generateRandomString(500);
