@@ -1,38 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["images.unsplash.com"],
-    unoptimized: true,
+    domains: ['images.unsplash.com'],
+    unoptimized: true
   },
-  // Configurações de performance
+  // Remover headers desnecessários que conflitam com Vercel
+  experimental: {
+    serverExternalPackages: [],
+  },
+  // Configuração para otimização no Vercel
   compress: true,
   poweredByHeader: false,
-  // Otimizações para build
-  experimental: {
-    optimizeCss: true,
+  // Configuração de redirecionamentos se necessário
+  async redirects() {
+    return [];
   },
-  // Headers para API
-  async headers() {
-    return [
-      {
-        source: "/api/:path*",
-        headers: [
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Access-Control-Allow-Methods", value: "GET,POST,OPTIONS" },
-          {
-            key: "Access-Control-Allow-Headers",
-            value: "Content-Type, Authorization",
-          },
-        ],
-      },
-    ];
-  },
-  // Configuração para evitar warnings de runtime
-  logging: {
-    fetches: {
-      fullUrl: false,
-    },
-  },
-};
+  // Configuração de rewrites se necessário
+  async rewrites() {
+    return [];
+  }
+}
 
-module.exports = nextConfig;
+module.exports = nextConfig
