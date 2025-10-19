@@ -57,7 +57,11 @@ export class FlightSearchService {
             }
 
             console.log('✅ Dados recebidos do Railway');
-            return this.parseOffersResponse(result.data);
+            console.log('📊 Tipo de dados:', result.metadata?.dataType);
+
+            const flights = this.parseOffersResponse(result.data);
+
+            return flights;
 
         } catch (error) {
             console.error('💥 Erro na busca:', error);
