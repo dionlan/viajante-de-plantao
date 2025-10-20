@@ -27,6 +27,7 @@ export default function SearchSection() {
     setSearchResults([]);
 
     try {
+      // ESTA CHAMADA AGORA USA O RAILWAY AUTOMATICAMENTE
       const results = await FlightSearchService.searchFlights(searchParams);
       console.log("✅ Resultados obtidos:", results.length, "voos");
 
@@ -86,7 +87,13 @@ export default function SearchSection() {
         >
           <SearchForm onSearch={handleSearch} isLoading={isSearching} />
         </motion.div>
-        <br/><br/><br/><br/><br/><br/><br/>
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
+        <br />
         {/* Search Results */}
         <motion.div
           initial={{ opacity: 0 }}

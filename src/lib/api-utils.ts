@@ -44,6 +44,9 @@ export class TokenManager {
 }
 
 export class UrlBuilder {
+    static validateSearchParams(searchParams: FlightSearch) {
+        throw new Error('Method not implemented.');
+    }
     static buildSearchUrl(searchParams: FlightSearch): string {
         const baseUrl = 'https://www.latamairlines.com/br/pt/oferta-voos';
         const params = this.buildUrlParams(searchParams);

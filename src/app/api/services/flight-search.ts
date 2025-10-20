@@ -1,77 +1,305 @@
-import { FlightSearch, TokenData, LatamApiResponse, Flight, LatamFlightOffer } from '@/lib/types';
+import { FlightSearch, LatamApiResponse, Flight, LatamFlightOffer } from '@/lib/types';
 import { TokenManager, UrlBuilder } from '@/lib/api-utils';
 
-export class FlightSearchService {
+// Interface para headers
+interface RequestHeaders {
+    [key: string]: string;
+}
 
+export class FlightSearchService {
+    private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
+    private static readonly RAILWAY_PROXY_URL = process.env.NEXT_PUBLIC_RAILWAY_PROXY_URL;
+
+    // MÉTODO PRINCIPAL - USA RAILWAY POR PADRÃO
     static async searchFlights(searchParams: FlightSearch): Promise<Flight[]> {
-        console.log('✈️ Iniciando busca via Railway...', searchParams);
+        console.log('🚀 Iniciando busca de voos...');
+        console.log('📋 Parâmetros recebidos:', searchParams);
+
+        // DEBUG: Log das variáveis de ambiente
+        console.log('🔍 DEBUG - Variáveis de ambiente:');
+        console.log('   NEXT_PUBLIC_RAILWAY_PROXY_URL:', process.env.NEXT_PUBLIC_RAILWAY_PROXY_URL);
+        console.log('   NODE_ENV:', process.env.NODE_ENV);
+        console.log('   RAILWAY_PROXY_URL (antigo):', process.env.RAILWAY_PROXY_URL);
+
+        // PRIORIDADE: Usa Railway Proxy se estiver configurado
+        if (this.RAILWAY_PROXY_URL) {
+            console.log('📡 Usando Railway Proxy:', this.RAILWAY_PROXY_URL);
+            try {
+                const results = await this.searchFlightsWithRailway(searchParams);
+                console.log(`✅ Railway retornou ${results.length} voos`);
+                return results;
+            } catch (error) {
+                console.error('❌ Erro no Railway Proxy:', error);
+                console.log('🔄 Fallback para busca direta...');
+                // Fallback para busca direta
+                return await this.searchFlightsDirect(searchParams);
+            }
+        } else {
+            // Fallback: busca direta se Railway não estiver configurado
+            console.log('🌐 Railway não configurado, usando busca direta');
+            return await this.searchFlightsDirect(searchParams);
+        }
+    }
+
+    // BUSCA VIA RAILWAY PROXY (MÉTODO PRINCIPAL)
+    private static async searchFlightsWithRailway(searchParams: FlightSearch): Promise<Flight[]> {
+        console.log('📨 Enviando busca para Railway Proxy...');
+
+        const { origin, destination, departureDate, returnDate, passengerDetails } = searchParams;
+
+        // Extrai códigos dos aeroportos
+        const extractCode = (location: string): string => {
+            if (!location) return '';
+            const match = location.match(/\(([A-Z]{3})\)/);
+            return match ? match[1] : (/^[A-Z]{3}$/.test(location) ? location : location.slice(-3));
+        };
+
+        const originCode = extractCode(origin);
+        const destinationCode = extractCode(destination);
+
+        if (!originCode || !destinationCode) {
+            throw new Error('Códigos de aeroporto inválidos');
+        }
+
+        const railwayParams = {
+            origin: originCode,
+            destination: destinationCode,
+            outbound: `${departureDate}T15:00:00.000Z`,
+            inbound: returnDate ? `${returnDate}T15:00:00.000Z` : `${departureDate}T15:00:00.000Z`,
+            adults: passengerDetails.adults || 1,
+            children: passengerDetails.children || 0,
+            babies: passengerDetails.babies || 0
+        };
+
+        console.log('📋 Parâmetros para Railway:', railwayParams);
+        console.log('🔗 Railway URL:', this.RAILWAY_PROXY_URL);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos timeout
 
         try {
-            // Extrair códigos dos aeroportos
-            const extractCode = (location: string): string => {
-                if (!location) return '';
-                const match = location.match(/\(([A-Z]{3})\)/);
-                return match ? match[1] : location;
-            };
-
-            const originCode = extractCode(searchParams.origin);
-            const destinationCode = extractCode(searchParams.destination);
-
-            if (!originCode || !destinationCode) {
-                throw new Error('Códigos de aeroporto inválidos');
-            }
-
-            // Preparar parâmetros para Railway
-            const railwayParams = {
-                origin: originCode,
-                destination: destinationCode,
-                outbound: searchParams.departureDate,
-                inbound: searchParams.returnDate || searchParams.departureDate,
-                adults: searchParams.passengerDetails?.adults || 1,
-                children: searchParams.passengerDetails?.children || 0,
-                babies: searchParams.passengerDetails?.babies || 0
-            };
-
-            console.log('📨 Enviando para Railway...', railwayParams);
-
-            // Fazer requisição para o proxy Railway
-            const response = await fetch('/api/railway-proxy', {
+            console.log('🌐 Fazendo request para Railway...');
+            const response = await fetch(`${this.RAILWAY_PROXY_URL}/api/complete-search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(railwayParams),
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
+
+            console.log('📊 Status do Railway:', response.status);
+            console.log('📊 Headers da resposta:', Object.fromEntries(response.headers.entries()));
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('❌ Erro na resposta do Railway:', response.status, errorText);
-                throw new Error(`Erro no servidor: ${response.status}`);
+                console.error('❌ Erro do Railway:', response.status, errorText);
+                throw new Error(`Railway retornou ${response.status}: ${errorText.substring(0, 200)}`);
             }
 
             const result = await response.json();
+            console.log('✅ Resposta do Railway recebida com sucesso');
+            console.log('📦 Resultado bruto:', JSON.stringify(result).substring(0, 500) + '...');
 
-            if (!result.success) {
-                console.error('❌ Erro do Railway:', result.error);
-                throw new Error(result.error || 'Erro na busca de voos');
+            if (result.success && result.data) {
+                console.log('🎯 Processando dados do Railway...');
+                // O Railway já retorna o array de flights formatado
+                if (Array.isArray(result.data.content)) {
+                    console.log(`✅ ${result.data.content.length} voos recebidos do Railway`);
+                    return result.data.content;
+                } else {
+                    throw new Error('Formato de dados inválido do Railway');
+                }
+            } else {
+                console.error('❌ Erro na resposta do Railway:', result.error);
+                throw new Error(result.error || 'Erro na resposta do Railway');
             }
 
-            console.log('✅ Dados recebidos do Railway');
-            console.log('📊 Tipo de dados:', result.metadata?.dataType);
-
-            const flights = this.parseOffersResponse(result.data);
-
-            return flights;
-
         } catch (error) {
-            console.error('💥 Erro na busca:', error);
+            clearTimeout(timeoutId);
+
+            if (error) {
+                console.error('⏰ Timeout na conexão com o Railway (45s)');
+                throw new Error('Timeout na conexão com o Railway');
+            }
+
+            console.error('💥 Erro na comunicação com Railway:', error);
             throw error;
         }
     }
 
-    private static parseOffersResponse(data: LatamApiResponse): Flight[] {
+    // BUSCA DIRETA (FALLBACK) - MANTIDO PARA COMPATIBILIDADE
+    private static async searchFlightsDirect(searchParams: FlightSearch): Promise<Flight[]> {
+        console.log('✈️ Usando busca direta (fallback)...');
+
+        let tokenData = TokenManager.getToken();
+
+        console.log('🔄 Obtendo novo token...');
+        await this.getUrlSearchToken(searchParams);
+        tokenData = TokenManager.getToken();
+
+        if (!tokenData) {
+            throw new Error('Não foi possível obter o token de busca');
+        }
+
+        return await this.getFlightApiOffersWithFetch(searchParams, tokenData.searchToken);
+    }
+
+    // MÉTODOS ORIGINAIS (para fallback) - MANTIDOS
+    static async getUrlSearchToken(searchParams: FlightSearch): Promise<string> {
+        console.log('🔄 Obtendo novo searchToken...');
+
+        const searchUrl = UrlBuilder.buildSearchUrl(searchParams);
+        console.log('🔗 URL de busca para token:', searchUrl);
+
+        const headers: RequestHeaders = {
+            'User-Agent': this.USER_AGENT,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+        };
+
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: searchUrl,
+                method: 'GET',
+                headers: headers,
+                extractToken: true
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erro na requisição: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success) {
+            throw new Error(result.error || 'Erro desconhecido na requisição');
+        }
+
+        const token = result.data;
+        console.log('✅ SearchToken obtido:', token.substring(0, 50) + '...');
+
+        TokenManager.setToken(token);
+        return token;
+    }
+
+    private static async getFlightApiOffersWithFetch(searchParams: FlightSearch, searchToken: string): Promise<Flight[]> {
+        console.log('🔍 Buscando ofertas com fetch...');
+
+        const offersUrl = UrlBuilder.buildApiOffersUrl(searchParams);
+        const expId = this.generateUUID();
+        const refererUrl = UrlBuilder.getRefererUrl(searchParams, expId);
+
+        console.log('🔗 URL de ofertas:', offersUrl);
+        console.log('🔗 Referer URL com exp_id:', refererUrl);
+
+        const sessionId = this.generateUUID();
+        const requestId = this.generateUUID();
+        const trackId = this.generateUUID();
+
+        const refererWithExpId = `${refererUrl}&exp_id=${expId}`;
+
+        const headers: RequestHeaders = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'priority': 'u=1, i',
+            'referer': refererWithExpId,
+            'sec-ch-ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+            'x-latam-action-name': 'search-result.flightselection.offers-search',
+            'x-latam-app-session-id': sessionId,
+            'x-latam-application-country': 'BR',
+            'x-latam-application-lang': 'pt',
+            'x-latam-application-name': 'web-air-offers',
+            'x-latam-application-oc': 'br',
+            'x-latam-client-name': 'web-air-offers',
+            'x-latam-device-width': '1746',
+            'x-latam-request-id': requestId,
+            'x-latam-search-token': searchToken,
+            'x-latam-track-id': trackId,
+            'Cookie': this.generateCookies()
+        };
+
+        console.log('📋 Headers configurados:', Object.keys(headers).length, 'headers');
+
+        const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                url: offersUrl,
+                method: 'GET',
+                headers: headers,
+                useFetch: true
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erro na busca de ofertas: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.success) {
+            console.error('❌ Erro na resposta da API:', result.error);
+
+            if (result.error?.includes('token') || result.error?.includes('auth') || result.error?.includes('400')) {
+                console.log('🔄 Possível problema com token, tentando renovar...');
+                TokenManager.clearToken();
+                return this.searchFlightsDirect(searchParams);
+            }
+
+            throw new Error(result.error || 'Erro na busca de ofertas');
+        }
+
+        console.log('✅ Busca direta concluída com sucesso');
+        return this.parseOffersResponse(result.data);
+    }
+
+    // MÉTODOS AUXILIARES - MANTIDOS
+    private static generateCookies(): string {
+        const abck = this.generateRandomString(500);
+        const xpExpId = this.generateUUID();
+        const bmSz = this.generateRandomString(100);
+        const xpSession = `s%3A${this.generateRandomString(50)}.${this.generateRandomString(100)}`;
+
+        return `_abck=${abck}; _xp_exp_id=${xpExpId}; bm_sz=${bmSz}; _xp_session=${xpSession}`;
+    }
+
+    private static generateRandomString(length: number): string {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~-';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    private static generateUUID(): string {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0;
+            const v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    private static parseOffersResponse(data: string): Flight[] {
         try {
-            const parsedData: LatamApiResponse = data;
+            const parsedData: LatamApiResponse = JSON.parse(data);
 
             console.log('📊 Resposta da API LATAM:', {
                 hasContent: !!parsedData.content,
@@ -93,6 +321,7 @@ export class FlightSearchService {
 
         } catch (error) {
             console.error('❌ Erro ao parsear resposta:', error);
+            console.error('📦 Dados que causaram erro:', data.substring(0, 500));
             return [];
         }
     }
@@ -179,9 +408,11 @@ export class FlightSearchService {
         const count = sellerCounts[flightIndex % sellerCounts.length] || 1;
 
         const selectedSellers: string[] = [];
+
         for (let i = 0; i < count && i < availableSellerIds.length; i++) {
             const sellerIndex = (flightIndex + i) % availableSellerIds.length;
             const sellerId = availableSellerIds[sellerIndex];
+
             if (!selectedSellers.includes(sellerId)) {
                 selectedSellers.push(sellerId);
             }

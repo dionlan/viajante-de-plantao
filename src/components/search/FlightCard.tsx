@@ -148,9 +148,9 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
     // Calcula quantos vendedores este voo terá (1-3)
     const sellerCount = minSellers + (seed % (maxSellers - minSellers + 1));
 
-    console.log(
+    /* console.log(
       `✈️ Voo ${flightId} terá ${sellerCount} vendedor(es) de ${sellers.length} disponíveis`
-    );
+    ); */
 
     // Seleciona vendedores aleatórios da lista disponível
     const selectedSellers: Seller[] = [];
@@ -170,10 +170,10 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
       selectedSellers.push(sellers[0]);
     }
 
-    console.log(
+    /* console.log(
       `✅ Voo ${flightId}: ${selectedSellers.length} vendedor(es) selecionado(s)`,
       selectedSellers.map((s) => s.name)
-    );
+    ); */
 
     return selectedSellers;
   }, [flight.id, sellers]);

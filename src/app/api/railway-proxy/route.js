@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const RAILWAY_URL = process.env.RAILWAY_PROXY_URL;
+const RAILWAY_URL = process.env.RAILWAY_PROXY_URL || 'http://localhost:3001';
 
 export async function POST(request) {
   console.log("🔗 Iniciando proxy para Railway...");
