@@ -8,11 +8,17 @@ interface RequestHeaders {
 
 export class FlightSearchService {
     private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36';
-    private static readonly RAILWAY_PROXY_URL = process.env.RAILWAY_PROXY_URL;
+    private static readonly RAILWAY_PROXY_URL = process.env.NEXT_PUBLIC_RAILWAY_PROXY_URL;
 
-    // Método principal - AGORA USA RAILWAY POR PADRÃO
+    // MÉTODO PRINCIPAL - USA RAILWAY POR PADRÃO
     static async searchFlights(searchParams: FlightSearch): Promise<Flight[]> {
-        console.log('🚄 Iniciando busca de voos...');
+        console.log('🚀 Iniciando busca de voos...');
+        console.log('📋 Parâmetros recebidos:', searchParams);
+
+        // DEBUG: Log das variáveis de ambiente
+        console.log('🔍 DEBUG - Variáveis de ambiente:');
+        console.log('   NEXT_PUBLIC_RAILWAY_PROXY_URL:', process.env.NEXT_PUBLIC_RAILWAY_PROXY_URL);
+        console.log('   NODE_ENV:', process.env.NODE_ENV);
 
         // PRIORIDADE: Usa Railway Proxy se estiver configurado
         if (this.RAILWAY_PROXY_URL) {
@@ -34,7 +40,7 @@ export class FlightSearchService {
         }
     }
 
-    // BUSCA VIA RAILWAY PROXY (MÉTODO PRINCIPAL)
+    // BUSCA VIA RAILWAY PROXY (MÉTODO PRINCIPAL) - CORRIGIDO
     private static async searchFlightsWithRailway(searchParams: FlightSearch): Promise<Flight[]> {
         console.log('📨 Enviando busca para Railway Proxy...');
 
@@ -54,63 +60,93 @@ export class FlightSearchService {
             throw new Error('Códigos de aeroporto inválidos');
         }
 
-        const railwayParams = {
-            origin: originCode,
+        // CORREÇÃO: Constrói parâmetros de query string para GET
+        const queryParams = new URLSearchParams({
+            adult: (passengerDetails.adults || 1).toString(),
+            infant: (passengerDetails.babies || 0).toString(),
+            cabinType: 'Economy',
+            outFlightDate: 'null',
+            outOfferId: 'null',
+            inFlightDate: 'null',
+            inOfferId: 'null',
+            redemption: 'true',
             destination: destinationCode,
-            outbound: `${departureDate}T15:00:00.000Z`,
-            inbound: returnDate ? `${returnDate}T15:00:00.000Z` : `${departureDate}T15:00:00.000Z`,
-            adults: passengerDetails.adults || 1,
-            children: passengerDetails.children || 0,
-            babies: passengerDetails.babies || 0
-        };
+            outFrom: departureDate,
+            origin: originCode,
+            sort: 'RECOMMENDED',
+            inFrom: returnDate || 'null',
+            child: (passengerDetails.children || 0).toString()
+        });
 
-        console.log('📋 Parâmetros para Railway:', railwayParams);
+        const railwayUrl = `${this.RAILWAY_PROXY_URL}/api/search/bff/air-offers/v2/offers/search?${queryParams}`;
+
+        console.log('📋 Parâmetros para Railway:', Object.fromEntries(queryParams));
+        console.log('🔗 Railway URL completa:', railwayUrl);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos timeout
 
         try {
-            const response = await fetch(`${this.RAILWAY_PROXY_URL}/api/complete-search`, {
-                method: 'POST',
+            console.log('🌐 Fazendo request GET para Railway...');
+            const response = await fetch(railwayUrl, {
+                method: 'GET',
                 headers: {
+                    'Accept': 'application/json',
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(railwayParams),
                 signal: controller.signal,
             });
 
             clearTimeout(timeoutId);
 
             console.log('📊 Status do Railway:', response.status);
+            console.log('📊 Headers da resposta:', Object.fromEntries(response.headers.entries()));
 
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('❌ Erro do Railway:', response.status, errorText);
-                throw new Error(`Railway retornou ${response.status}: ${errorText}`);
+                throw new Error(`Railway retornou ${response.status}: ${errorText.substring(0, 200)}`);
             }
 
             const result = await response.json();
             console.log('✅ Resposta do Railway recebida com sucesso');
+            console.log('📦 Resultado bruto:', JSON.stringify(result).substring(0, 500) + '...');
 
-            if (result.success && result.data) {
-                // Converte a resposta do Railway para o formato esperado
-                return this.parseOffersResponse(JSON.stringify(result.data));
-            } else {
-                throw new Error(result.error || 'Erro na resposta do Railway');
+            if (result.success && result.content) {
+                console.log('🎯 Processando dados do Railway...');
+                // O Railway já retorna o array de flights formatado
+                if (Array.isArray(result.content)) {
+                    console.log(`✅ ${result.content.length} voos recebidos do Railway`);
+                    return result.content;
+                } else {
+                    throw new Error('Formato de dados inválido do Railway');
+                }
+            } else if (result.content) {
+                // Fallback: se a resposta vier no formato direto
+                console.log('🎯 Processando dados do Railway (formato direto)...');
+                if (Array.isArray(result.content)) {
+                    console.log(`✅ ${result.content.length} voos recebidos do Railway`);
+                    return result.content;
+                }
             }
+
+            console.error('❌ Erro na resposta do Railway:', result.error);
+            throw new Error(result.error || 'Erro na resposta do Railway');
 
         } catch (error) {
             clearTimeout(timeoutId);
 
             if (error) {
-                throw new Error('Timeout na conexão com o Railway (45s)');
+                console.error('⏰ Timeout na conexão com o Railway (45s)');
+                throw new Error('Timeout na conexão com o Railway');
             }
 
+            console.error('💥 Erro na comunicação com Railway:', error);
             throw error;
         }
     }
 
-    // BUSCA DIRETA (FALLBACK)
+    // BUSCA DIRETA (FALLBACK) - MANTIDO PARA COMPATIBILIDADE
     private static async searchFlightsDirect(searchParams: FlightSearch): Promise<Flight[]> {
         console.log('✈️ Usando busca direta (fallback)...');
 
@@ -127,6 +163,7 @@ export class FlightSearchService {
         return await this.getFlightApiOffersWithFetch(searchParams, tokenData.searchToken);
     }
 
+    // ... (MANTENHA TODOS OS OUTROS MÉTODOS EXISTENTES - getUrlSearchToken, getFlightApiOffersWithFetch, etc.)
     // MÉTODOS ORIGINAIS (para fallback) - MANTIDOS
     static async getUrlSearchToken(searchParams: FlightSearch): Promise<string> {
         console.log('🔄 Obtendo novo searchToken...');
