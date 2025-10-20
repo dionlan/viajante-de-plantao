@@ -38,9 +38,10 @@ import {
   LucideIcon,
 } from "lucide-react";
 import { cn } from "app/src/lib/utils";
-import Button from "@/components/ui/button";
-import StarRating from "@/components/ui/star-rating";
-import { BadgeIconProps, VerificationStepProps } from "@/lib/types";
+import Button from "app/src/components/ui/button";
+import StarRating from "app/src/components/ui/star-rating-novo";
+import { VerificationStepProps, BadgeIconProps } from "app/src/lib/types";
+
 
 // Dados mockados premium
 const mockUser = {

@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  reactStrictMode: true,
 
   // ✅ Permitir chamadas às rotas internas da API
   async headers() {
@@ -22,11 +23,6 @@ const nextConfig = {
         ],
       },
     ];
-  },
-
-  // ✅ Garante compatibilidade com "src/app"
-  experimental: {
-    appDir: true,
   },
 };
 
