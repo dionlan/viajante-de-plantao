@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configurações essenciais
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-  },
+  // Configuração explícita para o diretório de origem
+  distDir: ".next",
 
   // Headers para CORS
   async headers() {
@@ -28,14 +26,16 @@ const nextConfig = {
     ];
   },
 
-  // Configuração do body parser
-  experimental: {
-    serverComponentsExternalPackages: [],
-  },
-
   // Otimizações
   poweredByHeader: false,
   compress: true,
+
+  // Logs para debug
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
 };
 
 module.exports = nextConfig;
