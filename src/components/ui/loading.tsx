@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -7,7 +9,13 @@ interface LoadingProps {
   className?: string;
 }
 
-export default function Loading({ size = "md", className }: LoadingProps) {
+/**
+ * Componente de carregamento animado
+ * - Usa framer-motion para rotação infinita
+ * - Respeita os tamanhos configuráveis
+ * - Segue padrão de client component para uso em Next.js
+ */
+const Loading: React.FC<LoadingProps> = ({ size = "md", className }) => {
   const sizes = {
     sm: "w-4 h-4",
     md: "w-8 h-8",
@@ -30,4 +38,6 @@ export default function Loading({ size = "md", className }: LoadingProps) {
       />
     </motion.div>
   );
-}
+};
+
+export default Loading;
