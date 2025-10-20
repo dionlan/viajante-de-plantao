@@ -55,7 +55,7 @@ export async function POST(request) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos
 
-    const response = await fetch(`${RAILWAY_URL}/api/complete-search`, {
+    const response = await fetch(`${RAILWAY_URL}/api/search`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

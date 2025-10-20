@@ -79,7 +79,7 @@ export class FlightSearchService {
 
         try {
             console.log('🌐 Fazendo request para Railway...');
-            const response = await fetch(`${this.RAILWAY_PROXY_URL}/api/complete-search`, {
+            const response = await fetch(`${this.RAILWAY_PROXY_URL}/api/search`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
