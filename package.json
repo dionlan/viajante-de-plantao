@@ -8,9 +8,6 @@
     "start": "next start",
     "lint": "next lint --fix"
   },
-  "next": {
-    "srcDir": "src"
-  },
   "dependencies": {
     "next": "15.5.4",
     "react": "^18.3.1",

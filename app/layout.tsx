@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
-import ScrollProgress from "@/components/ui/scroll-progress";
+import ScrollProgress from "./src/components/ui/scroll-progress";
 
 const inter = Inter({
   subsets: ["latin"],

@@ -1,15 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Headers para CORS
+  reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+
+  // ✅ Permitir chamadas às rotas internas da API
   async headers() {
     return [
       {
         source: "/api/:path*",
         headers: [
-          {
-            key: "Access-Control-Allow-Origin",
-            value: "*",
-          },
+          { key: "Access-Control-Allow-Origin", value: "*" },
           {
             key: "Access-Control-Allow-Methods",
             value: "GET, POST, PUT, DELETE, OPTIONS",
@@ -23,9 +24,10 @@ const nextConfig = {
     ];
   },
 
-  // Otimizações
-  poweredByHeader: false,
-  compress: true,
+  // ✅ Garante compatibilidade com "src/app"
+  experimental: {
+    appDir: true,
+  },
 };
 
 module.exports = nextConfig;

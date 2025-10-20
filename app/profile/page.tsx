@@ -37,7 +37,7 @@ import {
   Cpu,
   LucideIcon,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "app/src/lib/utils";
 import Button from "@/components/ui/button";
 import StarRating from "@/components/ui/star-rating";
 import { BadgeIconProps, VerificationStepProps } from "@/lib/types";
