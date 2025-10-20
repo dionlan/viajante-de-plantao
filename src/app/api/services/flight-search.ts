@@ -40,7 +40,7 @@ export class FlightSearchService {
         }
     }
 
-    // BUSCA VIA RAILWAY PROXY (MÉTODO PRINCIPAL) - CORRIGIDO
+    // BUSCA VIA RAILWAY PROXY (MÉTODO PRINCIPAL) - AJUSTADO
     private static async searchFlightsWithRailway(searchParams: FlightSearch): Promise<Flight[]> {
         console.log('📨 Enviando busca para Railway Proxy...');
 
@@ -60,7 +60,7 @@ export class FlightSearchService {
             throw new Error('Códigos de aeroporto inválidos');
         }
 
-        // CORREÇÃO: Constrói parâmetros de query string para GET
+        // Constrói query string para GET
         const queryParams = new URLSearchParams({
             adult: (passengerDetails.adults || 1).toString(),
             infant: (passengerDetails.babies || 0).toString(),
@@ -80,11 +80,10 @@ export class FlightSearchService {
 
         const railwayUrl = `${this.RAILWAY_PROXY_URL}/api/search/bff/air-offers/v2/offers/search?${queryParams}`;
 
-        console.log('📋 Parâmetros para Railway:', Object.fromEntries(queryParams));
         console.log('🔗 Railway URL completa:', railwayUrl);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 segundos timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 segundos para as duas etapas
 
         try {
             console.log('🌐 Fazendo request GET para Railway...');
@@ -100,7 +99,6 @@ export class FlightSearchService {
             clearTimeout(timeoutId);
 
             console.log('📊 Status do Railway:', response.status);
-            console.log('📊 Headers da resposta:', Object.fromEntries(response.headers.entries()));
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -110,23 +108,14 @@ export class FlightSearchService {
 
             const result = await response.json();
             console.log('✅ Resposta do Railway recebida com sucesso');
-            console.log('📦 Resultado bruto:', JSON.stringify(result).substring(0, 500) + '...');
 
             if (result.success && result.content) {
                 console.log('🎯 Processando dados do Railway...');
-                // O Railway já retorna o array de flights formatado
                 if (Array.isArray(result.content)) {
                     console.log(`✅ ${result.content.length} voos recebidos do Railway`);
                     return result.content;
                 } else {
                     throw new Error('Formato de dados inválido do Railway');
-                }
-            } else if (result.content) {
-                // Fallback: se a resposta vier no formato direto
-                console.log('🎯 Processando dados do Railway (formato direto)...');
-                if (Array.isArray(result.content)) {
-                    console.log(`✅ ${result.content.length} voos recebidos do Railway`);
-                    return result.content;
                 }
             }
 
@@ -136,8 +125,8 @@ export class FlightSearchService {
         } catch (error) {
             clearTimeout(timeoutId);
 
-            if (error) {
-                console.error('⏰ Timeout na conexão com o Railway (45s)');
+            if (error === 'AbortError') {
+                console.error('⏰ Timeout na conexão com o Railway (60s)');
                 throw new Error('Timeout na conexão com o Railway');
             }
 

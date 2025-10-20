@@ -89,7 +89,7 @@ export class UrlBuilder {
             trip: tripType === 'roundtrip' ? 'RT' : 'OW',
             cabin: 'Economy',
             redemption: false,
-            sort: 'DEPARTURE_DATE'
+            sort: 'RECOMMENDED'
         };
 
         if (tripType === 'roundtrip' && returnDate) {
@@ -122,7 +122,7 @@ export class UrlBuilder {
             outOfferId: 'null',
             infant: passengerDetails.babies || 0,
             inFrom: tripType === 'roundtrip' && returnDate ? returnDate : 'null',
-            sort: 'DEPARTURE_DATE',
+            sort: 'RECOMMENDED',
             cabinType: 'Economy',
             child: passengerDetails.children || 0,
             destination: destinationCode
