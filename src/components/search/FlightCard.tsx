@@ -24,17 +24,10 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
-import { Flight, Seller, FlightSegment } from "app/src/lib/types";
-import {
-  calculateMileValue,
-  formatTime,
-  formatMiles,
-  formatCurrency,
-  getSellerLevelColor,
-  formatDate,
-} from "app/src/lib/utils";
-import Button from "../ui/button";
 import StarRating from "../ui/star-rating-novo";
+import { Flight, Seller, FlightSegment } from "@/lib/types";
+import { calculateMileValue, formatTime, formatMiles, formatCurrency, getSellerLevelColor, formatDate } from "@/lib/utils";
+import Button from "../ui/button";
 
 interface FlightCardProps {
   flight: Flight;

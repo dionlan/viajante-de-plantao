@@ -2,13 +2,13 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Search, ArrowRightLeft, Sparkles, Plane } from "lucide-react";
 import Select from "../ui/select";
-import { Airport } from "app/src/lib/airports";
-import { FlightSearch } from "app/src/lib/types";
 import { cn } from "@/lib/utils";
 import AdvancedDatePicker from "../ui/advanced-date-picker";
 import AirportAutocomplete from "../ui/airport-autocomplete";
 import Button from "../ui/button";
 import PassengerSelector from "../ui/passenger-selector";
+import { Airport } from "@/lib/airports";
+import { FlightSearch } from "@/lib/types";
 
 interface SearchFormProps {
   onSearch: (searchParams: FlightSearch) => void;

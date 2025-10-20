@@ -2,11 +2,11 @@ import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import FlightCard from "./FlightCard";
 import { Plane, Filter, SortAsc, SlidersHorizontal, X } from "lucide-react";
-import { mockSellers } from "app/src/lib/mockData";
-import { FlightSearch, Flight } from "app/src/lib/types";
-import { formatDate } from "app/src/lib/utils";
 import Button from "../ui/button";
 import FilterDropdown from "../ui/filter-dropdown";
+import { mockSellers } from "@/lib/mockData";
+import { FlightSearch, Flight } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
 
 interface SearchResultsProps {
   searchData: FlightSearch | null;
