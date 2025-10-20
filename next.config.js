@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configuração explícita para o diretório de origem
-  distDir: ".next",
-
   // Headers para CORS
   async headers() {
     return [
@@ -29,13 +26,6 @@ const nextConfig = {
   // Otimizações
   poweredByHeader: false,
   compress: true,
-
-  // Logs para debug
-  logging: {
-    fetches: {
-      fullUrl: true,
-    },
-  },
 };
 
 module.exports = nextConfig;
