@@ -1,10 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove a configuração experimental problemática
-  // experimental: {
-  //   serverActions: true,
-  // },
-
   // Configurações essenciais
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
@@ -33,20 +28,14 @@ const nextConfig = {
     ];
   },
 
-  // Configuração para evitar problemas de API routes
-  api: {
-    bodyParser: {
-      sizeLimit: "2mb",
-    },
-    responseLimit: false,
+  // Configuração do body parser
+  experimental: {
+    serverComponentsExternalPackages: [],
   },
 
-  // Melhor tratamento de erros
+  // Otimizações
   poweredByHeader: false,
   compress: true,
-
-  // Otimizações
-  swcMinify: true,
 };
 
 module.exports = nextConfig;
