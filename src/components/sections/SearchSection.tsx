@@ -6,7 +6,7 @@ import { useInView } from "react-intersection-observer";
 import SearchForm from "@/components/search/SearchForm";
 import SearchResults from "@/components/search/SearchResults";
 import { FlightSearch, Flight } from "@/lib/types";
-import { FlightSearchService } from "@/app/api/services/flight-search";
+import { FlightSearchService } from "@/services/flight-search";
 
 export default function SearchSection() {
   const [searchData, setSearchData] = useState<FlightSearch | null>(null);
