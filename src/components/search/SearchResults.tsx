@@ -166,50 +166,6 @@ export default function SearchResults({
     );
   }
 
-  if (isLoading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-12 border border-white/20"
-      >
-        <div className="text-center">
-          <motion.div
-            animate={{
-              scale: [1, 1.1, 1],
-              rotate: [0, 180, 360],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="w-20 h-20 bg-gradient-to-r from-[#317873] to-[#a0d6b4] rounded-3xl mx-auto mb-6 flex items-center justify-center"
-          >
-            <Plane className="w-8 h-8 text-white" />
-          </motion.div>
-          <h3 className="text-2xl font-bold text-gray-800 mb-3 font-poppins">
-            Buscando as melhores ofertas...
-          </h3>
-          <p className="text-gray-600 text-lg">
-            Consultando todas as companhias aéreas
-          </p>
-          <div className="mt-6 w-32 h-1 bg-gradient-to-r from-[#317873] to-[#a0d6b4] rounded-full mx-auto overflow-hidden">
-            <motion.div
-              className="h-full bg-white/30"
-              animate={{ x: [-100, 100] }}
-              transition={{
-                duration: 1.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            />
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
   if (!searchData) {
     return (
       <motion.div
