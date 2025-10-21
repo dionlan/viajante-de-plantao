@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Users, Minus, Plus, Info, Baby, User, Smile } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Button from "./button";
+import { Z_INDEX } from "@/lib/constants";
 
 interface PassengerCount {
   adults: number;
@@ -253,7 +254,8 @@ export default function PassengerSelector({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/20 z-40"
+              className="fixed inset-0 bg-black/20"
+              style={{ zIndex: Z_INDEX.overlay }}
               onClick={() => setIsOpen(false)}
             />
 
@@ -262,7 +264,8 @@ export default function PassengerSelector({
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-[100] p-6"
+              className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl p-6"
+              style={{ zIndex: Z_INDEX.max }}
             >
               {/* Header */}
               <div className="mb-4">

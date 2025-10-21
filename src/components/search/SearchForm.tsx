@@ -1,6 +1,15 @@
+"use client";
+
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Search, ArrowRightLeft, Sparkles, Plane } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  ArrowRightLeft,
+  Sparkles,
+  Calendar,
+  Users,
+  Award,
+} from "lucide-react";
 import Select from "../ui/select";
 import { cn } from "@/lib/utils";
 import AdvancedDatePicker from "../ui/advanced-date-picker";
@@ -9,6 +18,8 @@ import Button from "../ui/button";
 import PassengerSelector from "../ui/passenger-selector";
 import { Airport } from "@/lib/airports";
 import { FlightSearch } from "@/lib/types";
+import Image from "next/image";
+import { designSystem, designSystemClasses } from "@/lib/design-system";
 
 interface SearchFormProps {
   onSearch: (searchParams: FlightSearch) => void;
@@ -38,6 +49,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     program: "all" as ProgramType,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSwapping, setIsSwapping] = useState(false);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -95,7 +107,10 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     }
   };
 
-  const swapLocations = () => {
+  const swapLocations = async () => {
+    setIsSwapping(true);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     setFormData((prev) => ({
       ...prev,
       origin: prev.destination,
@@ -106,6 +121,8 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
       origin: "",
       destination: "",
     }));
+
+    setIsSwapping(false);
   };
 
   const handleAirportSelect =
@@ -157,26 +174,78 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     }));
   };
 
+  const logos = {
+    LATAM: "/images/latam-logo.png",
+    GOL: "/images/gol-logo.png",
+    AZUL: "/images/azul-logo.png",
+  };
+
   const programOptions = [
     {
       value: "all",
       label: "Todos os Programas",
       icon: <Sparkles className="w-4 h-4" />,
+      description: "Buscar em todas as companhias",
     },
     {
       value: "latam",
       label: "LATAM Pass",
-      icon: <Plane className="w-4 h-4 text-red-500" />,
+      icon: (
+        <Image
+          src={logos.LATAM}
+          alt="LATAM Pass"
+          width={20}
+          height={20}
+          className="object-contain"
+        />
+      ),
+      description: "Milhas LATAM",
     },
     {
       value: "gol",
       label: "Smiles",
-      icon: <Plane className="w-4 h-4 text-orange-500" />,
+      icon: (
+        <Image
+          src={logos.GOL}
+          alt="Smiles"
+          width={20}
+          height={20}
+          className="object-contain"
+        />
+      ),
+      description: "Milhas GOL",
     },
     {
       value: "azul",
       label: "TudoAzul",
-      icon: <Plane className="w-4 h-4 text-blue-500" />,
+      icon: (
+        <Image
+          src={logos.AZUL}
+          alt="TudoAzul"
+          width={20}
+          height={20}
+          className="object-contain"
+        />
+      ),
+      description: "Milhas Azul",
+    },
+  ];
+
+  const quickTips = [
+    {
+      icon: Award,
+      text: "Melhor preço garantido",
+      color: "text-green-500",
+    },
+    {
+      icon: Users,
+      text: "Vendedores verificados",
+      color: "text-blue-500",
+    },
+    {
+      icon: Calendar,
+      text: "Suporte 24/7",
+      color: "text-purple-500",
     },
   ];
 
@@ -184,30 +253,35 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
     <motion.div
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
+      transition={{ duration: 0.6, ease: designSystem.animations.smooth }}
       className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative"
       style={{
-        isolation: "isolate", // Importante: cria novo contexto de stacking
+        isolation: "isolate",
+        zIndex: 10,
       }}
     >
-      {/* Efeito de fundo gradiente */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#317873]/5 to-[#a0d6b4]/5 pointer-events-none rounded-3xl" />
+      {/* Efeito de fundo gradiente aprimorado */}
+      <div
+        className="absolute inset-0 pointer-events-none rounded-3xl opacity-50"
+        style={{ background: designSystem.gradients.primary }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary-50/20 to-secondary-50/20 pointer-events-none rounded-3xl" />
 
-      {/* Header com Tabs */}
+      {/* Header com Tabs Aprimorado */}
       <div className="relative z-10 mb-8">
-        <div className="flex bg-gray-100 rounded-2xl p-1 w-fit mx-auto">
+        <div className="flex bg-neutral-100 rounded-2xl p-1 w-fit mx-auto shadow-inner">
           {[
-            { id: "roundtrip", label: "🛫 Ida e Volta" },
-            { id: "oneway", label: "➡️ Somente Ida" },
+            { id: "roundtrip", label: "🛫 Ida e Volta", icon: ArrowRightLeft },
+            { id: "oneway", label: "➡️ Somente Ida", icon: ArrowRightLeft },
           ].map((type) => (
             <motion.button
               key={type.id}
               onClick={() => setTripType(type.id as "oneway" | "roundtrip")}
               className={cn(
-                "px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 relative",
+                "px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 relative flex items-center gap-2",
                 tripType === type.id
                   ? "text-white"
-                  : "text-gray-600 hover:text-gray-900"
+                  : "text-neutral-600 hover:text-neutral-900"
               )}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -215,11 +289,13 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
               {tripType === type.id && (
                 <motion.div
                   layoutId="activeTab"
-                  className="absolute inset-0 bg-gradient-to-r from-[#317873] to-[#49796b] rounded-xl shadow-lg"
+                  className="absolute inset-0 rounded-xl shadow-lg"
+                  style={{ background: designSystem.gradients.primary }}
                   transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                 />
               )}
               <span className="relative z-10 flex items-center gap-2">
+                <type.icon className="w-4 h-4" />
                 {type.label}
               </span>
             </motion.button>
@@ -228,8 +304,8 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="relative z-10 space-y-6">
-        {/* Linha 1: Origem, Swap, Destino */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+        {/* Linha 1: Origem, Swap, Destino - Aprimorada */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
           {/* Origem */}
           <div className="lg:col-span-5 relative">
             <AirportAutocomplete
@@ -244,16 +320,21 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             />
           </div>
 
-          {/* Botão Swap */}
-          <div className="lg:col-span-2 flex justify-center">
+          {/* Botão Swap Aprimorado */}
+          <div className="lg:col-span-2 flex justify-center items-center h-16">
             <motion.button
               type="button"
               onClick={swapLocations}
-              whileHover={{ scale: 1.1, rotate: 180 }}
+              whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
-              className="w-12 h-12 bg-gradient-to-r from-[#317873] to-[#a0d6b4] rounded-xl flex items-center justify-center text-white shadow-lg hover:shadow-xl transition-all duration-300"
+              animate={isSwapping ? { rotate: 180 } : { rotate: 0 }}
+              className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden"
+              style={{ background: designSystem.gradients.secondary }}
               disabled={!formData.origin && !formData.destination}
             >
+              {/* Efeito de brilho */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
               <ArrowRightLeft className="w-5 h-5" />
             </motion.button>
           </div>
@@ -274,7 +355,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
           </div>
         </div>
 
-        {/* Linha 2: Datas, Passageiros, Programa */}
+        {/* Linha 2: Datas, Passageiros, Programa - Aprimorada */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Seletor de Datas Avançado */}
           <div className="relative">
@@ -295,7 +376,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             />
           </div>
 
-          {/* Programa de Milhas */}
+          {/* Programa de Milhas Aprimorado */}
           <div className="relative">
             <Select
               label="Programa de Milhas"
@@ -306,7 +387,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
           </div>
         </div>
 
-        {/* Botão de Busca */}
+        {/* Botão de Busca Aprimorado */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -321,10 +402,13 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
             variant="gradient"
             rounded="lg"
             icon={<Search className="w-5 h-5" />}
-            className="h-14 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-300"
+            className="h-14 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-300 relative overflow-hidden group"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
+            {/* Efeito de brilho no hover */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+
             {isLoading ? (
               <span className="flex items-center gap-2">
                 <motion.div
@@ -335,30 +419,41 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                 Buscando voos...
               </span>
             ) : (
-              "Buscar Passagens com Milhas"
+              <span className="flex items-center gap-2">
+                Buscar Passagens com Milhas
+              </span>
             )}
           </Button>
         </motion.div>
 
-        {/* Dicas Rápidas */}
+        {/* Dicas Rápidas Aprimoradas */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="flex flex-wrap gap-4 justify-center text-sm text-gray-600"
+          className="flex flex-wrap gap-6 justify-center text-sm"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full" />
-            <span>Melhor preço garantido</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full" />
-            <span>Vendedores verificados</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-purple-500 rounded-full" />
-            <span>Suporte 24/7</span>
-          </div>
+          {quickTips.map((tip, index) => (
+            <motion.div
+              key={tip.text}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.6 + index * 0.1 }}
+              className="flex items-center gap-2 text-neutral-600 group cursor-pointer"
+              whileHover={{ scale: 1.05 }}
+            >
+              <motion.div
+                whileHover={{ rotate: 360 }}
+                transition={{ duration: 0.5 }}
+                className={`w-8 h-8 bg-neutral-100 rounded-full flex items-center justify-center group-hover:bg-white group-hover:shadow-md transition-all duration-300 ${tip.color}`}
+              >
+                <tip.icon className="w-4 h-4" />
+              </motion.div>
+              <span className="font-medium group-hover:text-neutral-900 transition-colors duration-300">
+                {tip.text}
+              </span>
+            </motion.div>
+          ))}
         </motion.div>
       </form>
     </motion.div>

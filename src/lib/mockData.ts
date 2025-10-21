@@ -53,7 +53,7 @@ export const mockSellers: Seller[] = [
     },
     {
         id: "seller-1-0",
-        name: "Juliana Oliveira",
+        name: "Juliana Silva",
         rating: 4.7,
         totalSales: 132,
         memberSince: "2023-01-10",

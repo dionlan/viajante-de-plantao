@@ -210,3 +210,19 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+/* 🌥️ Cloud Animation for Flight Loading */
+@keyframes clouds {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: -800px;
+  }
+}
+
+.animate-clouds {
+  animation: clouds 30s linear infinite;
+  background-repeat: repeat-x;
+  background-size: 800px 400px;
+  opacity: 0.7;
+}

@@ -22,11 +22,22 @@ import {
   Crown,
   AlertTriangle,
   TrendingUp,
+  Ticket,
+  ShieldCheck,
+  Wallet,
+  ArrowRight,
 } from "lucide-react";
 import Image from "next/image";
 import StarRating from "../ui/star-rating-novo";
 import { Flight, Seller, FlightSegment } from "@/lib/types";
-import { calculateMileValue, formatTime, formatMiles, formatCurrency, getSellerLevelColor, formatDate } from "@/lib/utils";
+import {
+  calculateMileValue,
+  formatTime,
+  formatMiles,
+  formatCurrency,
+  getSellerLevelColor,
+  formatDate,
+} from "@/lib/utils";
 import Button from "../ui/button";
 
 interface FlightCardProps {
@@ -472,7 +483,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300">
             {/* Header do Voo */}
             <div className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                 {/* Informações da Companhia */}
                 <div className="flex items-start gap-4 flex-1">
                   <motion.div
@@ -530,127 +541,137 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                   </div>
                 </div>
 
+                {/* OFERTA - Design Focado em Promoção */}
                 <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex flex-col gap-4 min-w-[300px]"
+                  className="flex flex-col gap-3 min-w-[300px]"
                 >
-                  {/* Badge de Oferta Exclusiva */}
-                  {isPremiumOffer && (
+                  {/* Badge de Oferta - Destaque Promocional */}
+                  {(isPremiumOffer || isGoodOffer) && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg"
+                      className={`flex items-center justify-center gap-2 text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg ${
+                        isPremiumOffer
+                          ? "bg-gradient-to-r from-amber-500 to-orange-500"
+                          : "bg-gradient-to-r from-blue-500 to-cyan-500"
+                      }`}
                     >
-                      <Crown className="w-4 h-4" />
-                      <span>OFERTA EXCLUSIVA</span>
-                      <Sparkles className="w-4 h-4" />
+                      {isPremiumOffer ? (
+                        <>
+                          <Crown className="w-3 h-3" />
+                          <span>OFERTA EXCLUSIVA</span>
+                          <Sparkles className="w-3 h-3" />
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3 h-3" />
+                          <span>MELHOR OFERTA</span>
+                        </>
+                      )}
                     </motion.div>
                   )}
 
-                  {/* Nosso Preço - DESTAQUE PRINCIPAL */}
-                  {flight.milesPrice > 0 && (
-                    <div className="text-center space-y-3 p-4 bg-gradient-to-br from-white to-emerald-50 rounded-2xl border-2 border-emerald-200 shadow-lg">
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="text-sm font-semibold text-emerald-700">
-                          Com milhas:
-                        </span>
-                        {isGoodOffer && !isPremiumOffer && (
-                          <div className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-bold">
-                            <Zap className="w-3 h-3" />
-                            <span>BOA OFERTA</span>
+                  {/* Comparação de Preços - Layout Promocional */}
+                  <div className="bg-gradient-to-br from-white to-emerald-50 rounded-xl border-2 border-emerald-200 p-4 shadow-md">
+                    <div className="flex items-center justify-between gap-4">
+                      {/* Preço Original da Companhia - Design com Ícone de Mais Caro */}
+                      {flight.cashPrice > 0 && (
+                        <div className="text-center flex-1">
+                          <div className="text-xs text-gray-500 mb-1">
+                            Direto na companhia
                           </div>
-                        )}
+                          <div className="relative">
+                            <div className="text-lg font-semibold text-gray-400 line-through">
+                              {formatCurrency(flight.cashPrice)}
+                            </div>
+                          </div>
+                          {mileCalculation &&
+                            mileCalculation.discountPercentage > 0 && (
+                              <div className="flex items-center justify-center gap-1 mt-1">
+                                <TrendingUp className="w-3 h-3 text-red-500" />
+                                <div className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                                  +{mileCalculation.discountPercentage}% mais
+                                  caro
+                                </div>
+                              </div>
+                            )}
+                        </div>
+                      )}
+
+                      {/* Seta indicadora de comparação */}
+                      <div className="flex flex-col items-center justify-center">
+                        <ArrowRight className="w-5 h-5 text-gray-400" />
                       </div>
 
-                      <div className="text-4xl font-bold text-emerald-700 font-poppins">
-                        {formatMiles(flight.milesPrice)}
-                        <span className="text-lg font-normal text-emerald-600 ml-1">
-                          milhas
-                        </span>
-                      </div>
+                      {/* NOSSO PREÇO - GRANDE DESTAQUE */}
+                      {flight.milesPrice > 0 && (
+                        <div className="text-center flex-1">
+                          {/* Preço em Milhas */}
+                          <div className="text-2xl font-bold text-emerald-700 font-poppins mb-1">
+                            {formatMiles(flight.milesPrice)}
+                            <span className="text-sm font-normal text-emerald-600 ml-1">
+                              milhas
+                            </span>
+                          </div>
 
-                      {/* Valor Calculado em Reais */}
-                      {mileCalculation && (
-                        <div className="space-y-2">
-                          <div className="text-2xl font-bold text-gray-900">
-                            {formatCurrency(mileCalculation.calculatedValue)}
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <TrendingDown className="w-3 h-3 text-emerald-500" />
+                            <span className="text-xs text-emerald-600 font-semibold">
+                              NOSSO PREÇO
+                            </span>
                           </div>
-                          <div className="flex items-center justify-center gap-2 text-sm text-emerald-600 font-semibold">
-                            <TrendingUp className="w-4 h-4" />
-                            Melhor custo-benefício
+
+                          {/* Texto "A partir de" */}
+                          <div className="text-xs text-emerald-600 font-medium mb-1">
+                            A partir de
                           </div>
+
+                          {/* Valor em Reais - Destaque Principal */}
+                          {mileCalculation && (
+                            <div className="space-y-1">
+                              <div className="text-2xl font-bold text-gray-900">
+                                {formatCurrency(
+                                  mileCalculation.calculatedValue
+                                )}
+                              </div>
+                              {/* Percentual de desconto abaixo do nosso preço */}
+                              <div className="flex items-center justify-center gap-1">
+                                <BadgeCheck className="w-3 h-3 text-emerald-500" />
+                                <div className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                                  {mileCalculation.discountPercentage}% mais
+                                  barato
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Comparação de Valores - Design Aprimorado */}
-                  <div className="grid gap-3">
-                    {/* Valor Original da Companhia - DESIGN NEGATIVO */}
-                    {flight.cashPrice > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="relative p-4 rounded-xl border border-gray-300 bg-white shadow-sm"
-                      >
-                        {/* Header da Companhia */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <PlaneIcon className="w-4 h-4 text-gray-500" />
-                            <span className="font-semibold text-sm text-gray-700">
-                              Direto na companhia
-                            </span>
-                          </div>
-                          <AlertTriangle className="w-4 h-4 text-amber-500" />
-                        </div>
-
-                        {/* Preço da Companhia com Efeito de Cortado */}
-                        <div className="text-center relative">
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-full h-0.5 bg-red-400 transform rotate-[-3deg] shadow-sm"></div>
-                          </div>
-                          <div className="text-2xl font-bold text-gray-400 relative">
-                            {formatCurrency(flight.cashPrice)}
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-gray-500 text-center mt-2">
-                          Preço oficial sem benefícios
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {/* Economia Destaque - DESIGN POSITIVO */}
+                    {/* Economia em Destaque - Expandida até as bordas */}
                     {flight.milesPrice > 0 &&
                       mileCalculation &&
                       mileCalculation.discountPercentage > 0 && (
                         <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: 0.4 }}
-                          className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white shadow-lg"
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center justify-between mt-4 -mx-4 -mb-4 px-4 py-3 rounded-b-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white/20 rounded-full">
-                              <Sparkles className="w-5 h-5" />
+                            <div className="p-1.5 bg-white/20 rounded-full">
+                              <Sparkles className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="text-sm font-semibold">
                                 Você economiza
                               </div>
-                              <div className="text-xs opacity-90">
-                                Em relação à companhia
-                              </div>
                             </div>
                           </div>
 
                           <div className="text-right">
-                            <div className="text-2xl font-bold">
-                              {mileCalculation.discountPercentage}%
-                            </div>
-                            <div className="text-sm font-semibold">
+                            <div className="text-lg font-bold">
                               {formatCurrency(
                                 flight.cashPrice -
                                   mileCalculation.calculatedValue
@@ -659,6 +680,14 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                           </div>
                         </motion.div>
                       )}
+                  </div>
+
+                  {/* Selo de Garantia */}
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                    <ShieldCheck className="w-3 h-3 text-green-500" />
+                    <span>Transação 100% segura</span>
+                    <Wallet className="w-3 h-3 text-blue-500" />
+                    <span>Melhor preço garantido</span>
                   </div>
                 </motion.div>
               </div>
@@ -779,7 +808,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
 
         {/* Vendedores - Sidebar - AGORA GARANTIDO PARA TODOS OS VOOS */}
         {flightSellers.length > 0 && (
-          <div className="xl:w-96 xl:border-l xl:border-l-gray-200 xl:pl-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-300 p-4">
             <div className="mb-6">
               <h5 className="font-semibold text-gray-900 text-lg mb-3 flex items-center gap-3">
                 <div className="p-2 bg-[#317873] rounded-xl">
@@ -790,10 +819,6 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                   ({flightSellers.length})
                 </span>
               </h5>
-              <p className="text-sm text-gray-600 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-green-500" />
-                Transações 100% seguras
-              </p>
             </div>
 
             {/* Fallback absoluto - se não houver sellers, usa os primeiros disponíveis */}
@@ -918,7 +943,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                             <ContactButton
                               href={`tel:${seller.contact.phone}`}
                               icon={<Phone className="w-4 h-4" />}
-                              className="!bg-[#317873] !text-white hover:!bg-[#49796b]"
+                              className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
                             >
                               Ligar
                             </ContactButton>
@@ -926,6 +951,7 @@ export default function FlightCard({ flight, sellers }: FlightCardProps) {
                             <ContactButton
                               href={`mailto:${seller.contact.email}`}
                               icon={<Mail className="w-4 h-4" />}
+                              className="!bg-green-50 !text-green-700 !border-green-200 hover:!bg-green-100"
                             >
                               E-mail
                             </ContactButton>
