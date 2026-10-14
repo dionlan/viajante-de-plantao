@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { designSystem, designSystemClasses } from "@/lib/design-system";
 import { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 
 export default function Hero() {
   const [ref, inView] = useInView({
@@ -24,6 +25,7 @@ export default function Hero() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
   const stats = [
     {
@@ -224,7 +226,7 @@ export default function Hero() {
 
   return (
     <section
-      className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 py-20"
+      className="relative min-h-screen flex items-center justify-center overflow-hidden"
       style={{
         background: designSystem.gradients.primary,
       }}
@@ -254,7 +256,7 @@ export default function Hero() {
         }}
       />
 
-      <div className="relative z-10 container mx-auto px-4 text-center">
+      <div className="relative z-10 container mx-auto px-4 text-center pt-32 pb-20">
         <motion.div
           ref={ref}
           initial={{ opacity: 0, y: 60 }}
@@ -263,12 +265,12 @@ export default function Hero() {
           className="max-w-6xl mx-auto"
         >
           {/* Heading Principal */}
-          <motion.div className="mb-12">
+          <motion.div className="mb-10">
             <motion.h1
               initial={{ opacity: 0, y: 40 }}
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: 0.4, duration: 0.8 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-bold text-white mb-8 font-poppins leading-tight"
+              className="text-4xl md:text-7xl lg:text-8xl font-bold text-white mb-8 font-poppins leading-tight"
             >
               Revolucionamos o
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#a0d6b4] to-white">
@@ -296,99 +298,112 @@ export default function Hero() {
             </motion.p>
           </motion.div>
 
-          {/* CTA Buttons */}
+          {/* CTA Buttons - Responsivo */}
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 25 }}
             animate={inView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 0.9, duration: 0.8 }}
-            className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-20"
+            transition={{ delay: 0.8, duration: 0.8 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 px-4"
           >
             <motion.button
               onClick={scrollToSearch}
-              whileHover={{
-                scale: 1.05,
-                y: -3,
-                boxShadow: designSystem.shadows.xl,
-              }}
-              whileTap={{ scale: 0.97 }}
-              className="px-12 py-5 bg-white rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all duration-500 shadow-2xl flex items-center space-x-3 group relative overflow-hidden"
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-6 py-4 bg-white rounded-xl font-semibold text-primary-700 transition-all duration-300 shadow-xl flex items-center gap-3 group w-full sm:w-auto justify-center relative overflow-hidden"
+              onMouseEnter={() => setHoveredButton("search")}
+              onMouseLeave={() => setHoveredButton(null)}
               style={{
-                color: designSystem.colors.primary[700],
+                backgroundColor:
+                  hoveredButton === "search" ? "#f9fafb" : "#ffffff",
+                boxShadow:
+                  hoveredButton === "search"
+                    ? designSystem.shadows.xl
+                    : designSystem.shadows.lg,
               }}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              <Search className="w-6 h-6" />
-              <span>Buscar Passagens com Milhas</span>
-              <motion.div
-                animate={{ x: [0, 5, 0] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              >
-                <ArrowRight className="w-5 h-5" />
-              </motion.div>
+              <div
+                className={cn(
+                  "absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700",
+                  hoveredButton === "search"
+                    ? "translate-x-0"
+                    : "-translate-x-full"
+                )}
+              />
+              <Search className="w-5 h-5 relative z-10" />
+              <span className="text-base relative z-10">
+                Buscar Passagens com Milhas
+              </span>
             </motion.button>
 
             <motion.button
-              whileHover={{
-                scale: 1.05,
-                y: -3,
-                backgroundColor: "rgba(255,255,255,0.2)",
-                borderColor: "rgba(255,255,255,0.5)",
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-6 py-4 bg-transparent border-2 border-white/40 text-white rounded-xl font-semibold transition-all duration-300 flex items-center gap-3 w-full sm:w-auto justify-center backdrop-blur-sm relative overflow-hidden"
+              onMouseEnter={() => setHoveredButton("sell")}
+              onMouseLeave={() => setHoveredButton(null)}
+              style={{
+                backgroundColor:
+                  hoveredButton === "sell"
+                    ? "rgba(255, 255, 255, 0.15)"
+                    : "transparent",
+                borderColor:
+                  hoveredButton === "sell"
+                    ? "rgba(255, 255, 255, 0.6)"
+                    : "rgba(255, 255, 255, 0.4)",
               }}
-              whileTap={{ scale: 0.97 }}
-              className="px-12 py-5 bg-transparent border-2 border-white/40 text-white rounded-2xl font-bold text-lg hover:bg-white/15 transition-all duration-500 backdrop-blur-xl shadow-2xl hover:shadow-3xl flex items-center space-x-3"
             >
-              <Globe className="w-6 h-6" />
-              <span>Quero Vender Minhas Milhas</span>
+              <div
+                className={cn(
+                  "absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700",
+                  hoveredButton === "sell"
+                    ? "translate-x-0"
+                    : "-translate-x-full"
+                )}
+              />
+              <Globe className="w-5 h-5 relative z-10" />
+              <span className="text-base relative z-10">
+                Quero Vender Minhas Milhas
+              </span>
             </motion.button>
           </motion.div>
 
-          {/* Stats Grid */}
+          {/* Stats Grid - Responsivo */}
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={inView ? { opacity: 1, y: 0 } : {}}
-            transition={{ delay: 1.1, duration: 0.8 }}
-            className="grid grid-cols-2 lg:grid-cols-4 gap-6 max-w-4xl mx-auto"
+            transition={{ delay: 1.0, duration: 0.8 }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto px-4"
           >
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                initial={{ opacity: 0, scale: 0.9, y: 30 }}
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={inView ? { opacity: 1, scale: 1, y: 0 } : {}}
                 transition={{
-                  delay: 1.3 + index * 0.15,
+                  delay: 1.2 + index * 0.1,
                   duration: 0.6,
                   ease: designSystem.animations.gentle,
                 }}
-                whileHover={{
-                  scale: 1.08,
-                  y: -5,
-                  transition: {
-                    duration: 0.3,
-                    ease: designSystem.animations.bounce,
-                  },
-                }}
+                whileHover={{ scale: 1.05, y: -2 }}
                 className="text-center group cursor-pointer"
               >
                 <motion.div
-                  className="w-24 h-24 bg-white/15 rounded-3xl flex flex-col items-center justify-center mx-auto mb-5 backdrop-blur-xl border border-white/30 group-hover:bg-white/20 group-hover:border-white/50 transition-all duration-500 relative overflow-hidden shadow-2xl group-hover:shadow-3xl"
-                  whileHover={{ rotateY: 10 }}
+                  className="w-16 h-16 md:w-20 md:h-20 bg-white/10 rounded-xl flex flex-col items-center justify-center mx-auto mb-3 md:mb-4 backdrop-blur-sm border border-white/20 group-hover:bg-white/15 transition-all duration-300 relative overflow-hidden"
+                  whileHover={{ rotateY: 5 }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/0 via-white/10 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <stat.icon
-                    className="w-7 h-7 mb-2 group-hover:scale-110 transition-transform duration-300"
-                    style={{ color: designSystem.colors.secondary[400] }}
+                    className="w-5 h-5 md:w-6 md:h-6 mb-1 group-hover:scale-110 transition-transform duration-300"
+                    style={{ color: designSystem.colors.secondary[300] }}
                   />
-                  <div className="text-2xl font-black text-white font-poppins group-hover:text-secondary-300 transition-colors duration-300">
+                  <div className="text-lg md:text-xl font-bold text-white font-poppins group-hover:text-secondary-300 transition-colors duration-300">
                     {stat.number}
                   </div>
                 </motion.div>
-                <div className="text-lg font-bold text-white mb-2 font-poppins">
+                <div className="text-sm md:text-base font-semibold text-white mb-1 font-poppins">
                   {stat.label}
                 </div>
-                <div
-                  className={`${designSystemClasses.text.caption} text-white/80 group-hover:text-white/90 transition-colors duration-300`}
-                >
+                <div className="text-white/70 text-xs md:text-sm leading-tight">
                   {stat.description}
                 </div>
               </motion.div>

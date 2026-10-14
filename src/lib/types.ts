@@ -1,18 +1,17 @@
 import { LucideIcon } from "lucide-react";
 
+export type SearchType = 'cash' | 'miles';
+
 export interface FlightSearch {
     origin: string;
     destination: string;
     departureDate: string;
-    returnDate: string;
-    passengers: number;
-    program: 'all' | 'latam' | 'gol' | 'azul';
+    returnDate?: string;
     tripType: 'oneway' | 'roundtrip';
-    passengerDetails: {
-        adults: number;
-        children: number;
-        babies: number;
-    }
+    passengerDetails: { adults: number; children: number; babies: number };
+    passengers: number;
+    program: string;
+    searchType?: SearchType;
 }
 
 export interface Flight {

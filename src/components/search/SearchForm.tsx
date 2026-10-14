@@ -127,7 +127,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
 
   const handleAirportSelect =
     (field: "origin" | "destination") => (airport: Airport) => {
-      const value = `${airport.city} (${airport.code})`;
+      const value = `${airport.code}`;
       setFormData((prev) => ({ ...prev, [field]: value }));
       setErrors((prev) => ({ ...prev, [field]: "" }));
 
@@ -281,7 +281,7 @@ export default function SearchForm({ onSearch, isLoading }: SearchFormProps) {
                 "px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-300 relative flex items-center gap-2",
                 tripType === type.id
                   ? "text-white"
-                  : "text-neutral-600 hover:text-neutral-900"
+                  : "text-neutral-600 hover:text-neutral-900",
               )}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}

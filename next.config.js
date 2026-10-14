@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: ['impers', 'patchright', 'patchright-core'],
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,

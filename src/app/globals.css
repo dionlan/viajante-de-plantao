@@ -226,3 +226,25 @@ body {
   background-size: 800px 400px;
   opacity: 0.7;
 }
+
+/* Ajuste conforme tamanho que você quer repetir; background-size controla a "velocidade" visual do tile */
+.bg-clouds {
+  background-image: url("/clouds.svg");
+  background-repeat: repeat-x;
+  background-size: 1600px 400px; /* largura do SVG — ajustável */
+  background-position: 0 0;
+}
+
+/* simples animação deslocando background (parallax loop) */
+@keyframes cloud-scroll {
+  0% {
+    background-position-x: 0;
+  }
+  100% {
+    background-position-x: -1600px;
+  } /* desloca o width do tile */
+}
+
+.animate-clouds {
+  animation: cloud-scroll 40s linear infinite;
+}
